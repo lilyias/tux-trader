@@ -2,9 +2,9 @@
 //!
 //! External NATS JetStream is optional later; local Paper MVP uses this bus.
 
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::broadcast;
-use serde::{Deserialize, Serialize};
 
 use crate::domain::{Fill, InstrumentId, Order, OrderIntent};
 use crate::error::{Result, TuxError};
@@ -80,9 +80,9 @@ impl InMemoryEventBus {
     }
 
     pub fn publish(&self, event: BusEvent) -> Result<usize> {
-        self.tx
-            .send(event)
-            .map_err(|_| TuxError::other("event bus has no active subscribers; event not delivered"))
+        self.tx.send(event).map_err(|_| {
+            TuxError::other("event bus has no active subscribers; event not delivered")
+        })
     }
 
     pub fn publish_ignore_lag(&self, event: BusEvent) {

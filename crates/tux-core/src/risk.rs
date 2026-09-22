@@ -3,8 +3,8 @@
 //! Market orders use mid/last as notional reference; without a reference
 //! price they are rejected (cannot silently bypass max_order_notional).
 
-use std::collections::{HashMap, VecDeque};
 use rust_decimal::Decimal;
+use std::collections::{HashMap, VecDeque};
 
 use crate::domain::{Instrument, OrderIntent, OrderType, RiskDecision, RiskLimitConfig};
 use crate::ids::{now_ms, AccountId, StrategyInstanceId, TimestampMs};
@@ -139,11 +139,15 @@ impl RiskEngine {
             if self.daily_realized_pnl < Decimal::ZERO && (-self.daily_realized_pnl) > max_loss {
                 return self.reject(
                     "max_daily_loss",
-                    format!("daily loss {} exceeds {}", self.daily_realized_pnl, max_loss),
+                    format!(
+                        "daily loss {} exceeds {}",
+                        self.daily_realized_pnl, max_loss
+                    ),
                 );
             }
         }
-        if let (Some(max_dd), true) = (self.limits.max_drawdown, !self.high_water_equity.is_zero()) {
+        if let (Some(max_dd), true) = (self.limits.max_drawdown, !self.high_water_equity.is_zero())
+        {
             let mut marks = std::collections::HashMap::new();
             marks.insert(instrument.quote_asset.clone(), Decimal::ONE);
             if let Some(px) = market_ref {
@@ -152,10 +156,7 @@ impl RiskEngine {
             let equity = portfolio.equity_mtm(&intent.account_id, &instrument.quote_asset, &marks);
             let dd = (self.high_water_equity - equity) / self.high_water_equity;
             if dd > max_dd {
-                return self.reject(
-                    "max_drawdown",
-                    format!("drawdown {dd} exceeds {max_dd}"),
-                );
+                return self.reject("max_drawdown", format!("drawdown {dd} exceeds {max_dd}"));
             }
         }
 
@@ -278,10 +279,7 @@ impl RiskEngine {
                 .copied()
                 .unwrap_or(0);
             if n >= max {
-                return self.reject(
-                    "max_active_orders",
-                    format!("{n} active orders >= {max}"),
-                );
+                return self.reject("max_active_orders", format!("{n} active orders >= {max}"));
             }
         }
 
@@ -308,10 +306,8 @@ impl RiskEngine {
             match market_age_ms {
                 None => return self.reject("stale_market", "no market data"),
                 Some(age) if age > max_age => {
-                    return self.reject(
-                        "stale_market",
-                        format!("market age {age}ms > {max_age}ms"),
-                    );
+                    return self
+                        .reject("stale_market", format!("market age {age}ms > {max_age}ms"));
                 }
                 _ => {}
             }
@@ -347,7 +343,8 @@ impl RiskEngine {
         self.consecutive_rejects += 1;
         if let Some(limit) = self.limits.consecutive_reject_limit {
             if self.consecutive_rejects >= limit && !self.kill_switch.engaged {
-                self.kill_switch.engage("consecutive rejects circuit breaker");
+                self.kill_switch
+                    .engage("consecutive rejects circuit breaker");
             }
         }
         RiskDecision::reject(rule, message)
@@ -390,7 +387,14 @@ mod tests {
     }
 
     fn inst() -> Instrument {
-        Instrument::spot("SOL-USDT", Venue::LocalPaper, "SOL", "USDT", d("0.01"), d("0.001"))
+        Instrument::spot(
+            "SOL-USDT",
+            Venue::LocalPaper,
+            "SOL",
+            "USDT",
+            d("0.01"),
+            d("0.001"),
+        )
     }
 
     fn cfg() -> RiskLimitConfig {
@@ -417,7 +421,9 @@ mod tests {
         let mut e = RiskEngine::new(cfg());
         let i = intent(None, d("1"));
         let dec = e.check_intent(&i, &inst(), None, Some(1), &Portfolio::new());
-        assert!(matches!(dec, RiskDecision::Rejected { rule, .. } if rule == "missing_reference_price"));
+        assert!(
+            matches!(dec, RiskDecision::Rejected { rule, .. } if rule == "missing_reference_price")
+        );
     }
 
     #[test]
@@ -426,7 +432,15 @@ mod tests {
             consecutive_reject_limit: None,
             ..Default::default()
         });
-        let dec = e.check_intent(&intent(Some(d("100")), d("1")), &inst(), Some(d("100")), Some(1), &Portfolio::new());
-        assert!(matches!(dec, RiskDecision::Rejected { rule, .. } if rule == "instrument_whitelist"));
+        let dec = e.check_intent(
+            &intent(Some(d("100")), d("1")),
+            &inst(),
+            Some(d("100")),
+            Some(1),
+            &Portfolio::new(),
+        );
+        assert!(
+            matches!(dec, RiskDecision::Rejected { rule, .. } if rule == "instrument_whitelist")
+        );
     }
 }

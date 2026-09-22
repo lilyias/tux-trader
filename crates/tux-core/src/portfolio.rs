@@ -2,8 +2,8 @@
 //!
 //! Spot balance ≠ contract Position; both roll up into Exposure.
 
-use std::collections::HashMap;
 use rust_decimal::Decimal;
+use std::collections::HashMap;
 
 use crate::domain::{Balance, Exposure, Instrument, PnLComponents, Position};
 use crate::ids::{AccountId, TimestampMs};
@@ -38,8 +38,15 @@ impl PnLBook {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum AccountingEvent {
-    Fee { asset: String, amount: Decimal, at: TimestampMs },
-    FillApplied { fill_id: String, at: TimestampMs },
+    Fee {
+        asset: String,
+        amount: Decimal,
+        at: TimestampMs,
+    },
+    FillApplied {
+        fill_id: String,
+        at: TimestampMs,
+    },
     ManualAdjustment {
         asset: String,
         delta: Decimal,
@@ -65,10 +72,8 @@ impl Portfolio {
     }
 
     pub fn seed_balance(&mut self, balance: Balance) {
-        self.balances.insert(
-            format!("{}:{}", balance.account_id, balance.asset),
-            balance,
-        );
+        self.balances
+            .insert(format!("{}:{}", balance.account_id, balance.asset), balance);
     }
 
     pub fn balance(&self, account_id: &AccountId, asset: &str) -> Option<&Balance> {
@@ -90,8 +95,13 @@ impl Portfolio {
         );
     }
 
-    pub fn position(&self, account_id: &AccountId, instrument: &InstrumentIdKey) -> Option<&Position> {
-        self.positions.get(&format!("{}:{}", account_id, instrument.0))
+    pub fn position(
+        &self,
+        account_id: &AccountId,
+        instrument: &InstrumentIdKey,
+    ) -> Option<&Position> {
+        self.positions
+            .get(&format!("{}:{}", account_id, instrument.0))
     }
 
     pub fn pnl_book(&self, account_id: &AccountId) -> Option<&PnLBook> {
@@ -134,7 +144,13 @@ impl Portfolio {
             .unwrap_or(Decimal::ZERO);
         match side {
             crate::domain::OrderSide::Buy => {
-                if quote_free < notional + if fee_asset == instrument.quote_asset { fee_amount } else { Decimal::ZERO }
+                if quote_free
+                    < notional
+                        + if fee_asset == instrument.quote_asset {
+                            fee_amount
+                        } else {
+                            Decimal::ZERO
+                        }
                 {
                     return Err(TuxError::InvalidOrder(format!(
                         "insufficient {quote_free} {} for buy notional {notional}",
@@ -284,7 +300,14 @@ mod tests {
     #[test]
     fn gross_exposure_is_not_abs_net() {
         let acc = AccountId::from("a1");
-        let inst = Instrument::spot("SOL-USDT", Venue::LocalPaper, "SOL", "USDT", d("0.01"), d("0.001"));
+        let inst = Instrument::spot(
+            "SOL-USDT",
+            Venue::LocalPaper,
+            "SOL",
+            "USDT",
+            d("0.01"),
+            d("0.001"),
+        );
         let mut p = Portfolio::new();
         // 1 SOL spot long @ 100 = +100 notional
         p.seed_balance(Balance {
@@ -342,7 +365,14 @@ mod tests {
     #[test]
     fn apply_spot_fill_rejects_overdraft() {
         let acc = AccountId::from("a1");
-        let inst = Instrument::spot("SOL-USDT", Venue::LocalPaper, "SOL", "USDT", d("0.01"), d("0.001"));
+        let inst = Instrument::spot(
+            "SOL-USDT",
+            Venue::LocalPaper,
+            "SOL",
+            "USDT",
+            d("0.01"),
+            d("0.001"),
+        );
         let mut p = Portfolio::new();
         p.seed_balance(Balance {
             account_id: acc.clone(),
@@ -351,8 +381,15 @@ mod tests {
             locked: Decimal::ZERO,
             updated_at: 0,
         });
-        let err = p
-            .apply_spot_fill(&acc, &inst, crate::domain::OrderSide::Buy, d("100"), d("1"), Decimal::ZERO, "USDT");
+        let err = p.apply_spot_fill(
+            &acc,
+            &inst,
+            crate::domain::OrderSide::Buy,
+            d("100"),
+            d("1"),
+            Decimal::ZERO,
+            "USDT",
+        );
         assert!(err.is_err());
     }
 }

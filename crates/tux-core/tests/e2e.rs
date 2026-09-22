@@ -1,7 +1,7 @@
 //! End-to-end: market → strategy intent → risk → OMS → paper → portfolio.
 
-use std::str::FromStr;
 use rust_decimal::Decimal;
+use std::str::FromStr;
 use tux_core::domain::*;
 use tux_core::events::{BookTicker, InMemoryEventBus, MarketEvent};
 use tux_core::ids::*;
@@ -16,7 +16,14 @@ fn d(s: &str) -> Decimal {
 }
 
 fn sol() -> Instrument {
-    Instrument::spot("SOL-USDT", Venue::LocalPaper, "SOL", "USDT", d("0.01"), d("0.001"))
+    Instrument::spot(
+        "SOL-USDT",
+        Venue::LocalPaper,
+        "SOL",
+        "USDT",
+        d("0.01"),
+        d("0.001"),
+    )
 }
 
 #[tokio::test]
@@ -136,7 +143,11 @@ async fn e2e_market_to_portfolio_fill() {
     assert_eq!(base.free, d("0.5"));
     let quote = portfolio.balance(&account_id, "USDT").unwrap();
     // 10000 - 100*0.5 - fee
-    assert!(quote.free < d("9950") && quote.free > d("9949"), "quote={}", quote.free);
+    assert!(
+        quote.free < d("9950") && quote.free > d("9949"),
+        "quote={}",
+        quote.free
+    );
 }
 
 #[tokio::test]
@@ -210,17 +221,16 @@ async fn e2e_cancel_resting_limit_order() {
         created_at: now,
         updated_at: now,
     };
-    paper
-        .on_book_top(
-            &InstrumentId::new("SOL-USDT"),
-            BookTop {
-                bid_price: d("99"),
-                bid_qty: d("1"),
-                ask_price: d("100"),
-                ask_qty: d("1"),
-                at: now,
-            },
-        );
+    paper.on_book_top(
+        &InstrumentId::new("SOL-USDT"),
+        BookTop {
+            bid_price: d("99"),
+            bid_qty: d("1"),
+            ask_price: d("100"),
+            ask_qty: d("1"),
+            at: now,
+        },
+    );
     let placed = paper.place_order(&order).await.unwrap();
     assert_eq!(placed.status, OrderStatus::Acknowledged);
     let cancelled = paper.cancel_order(&placed.id).await.unwrap();

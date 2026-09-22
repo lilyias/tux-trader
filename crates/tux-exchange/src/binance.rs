@@ -3,7 +3,7 @@
 
 use tux_core::ids::Venue;
 
-use crate::{VenueEndpoints, VenueCredentials};
+use crate::{VenueCredentials, VenueEndpoints};
 
 pub struct BinanceAdapter {
     pub endpoints: VenueEndpoints,

@@ -230,7 +230,10 @@ impl OrderStatus {
     pub fn is_terminal(&self) -> bool {
         matches!(
             self,
-            OrderStatus::Filled | OrderStatus::Cancelled | OrderStatus::Rejected | OrderStatus::Reconciled
+            OrderStatus::Filled
+                | OrderStatus::Cancelled
+                | OrderStatus::Rejected
+                | OrderStatus::Reconciled
         )
     }
 
@@ -250,11 +253,38 @@ impl OrderStatus {
             (self, to),
             (Created, RiskApproved | Rejected)
                 | (RiskApproved, Submitted | Rejected)
-                | (Submitted, Acknowledged | PartiallyFilled | Filled | CancelPending | Cancelled | Rejected | Unknown)
-                | (Acknowledged, PartiallyFilled | Filled | CancelPending | Cancelled | Rejected | Unknown)
-                | (PartiallyFilled, PartiallyFilled | Filled | CancelPending | Cancelled | Unknown)
-                | (CancelPending, Cancelled | PartiallyFilled | Filled | Unknown)
-                | (Unknown, Reconciled | Submitted | Acknowledged | PartiallyFilled | Filled | Cancelled | Rejected)
+                | (
+                    Submitted,
+                    Acknowledged
+                        | PartiallyFilled
+                        | Filled
+                        | CancelPending
+                        | Cancelled
+                        | Rejected
+                        | Unknown
+                )
+                | (
+                    Acknowledged,
+                    PartiallyFilled | Filled | CancelPending | Cancelled | Rejected | Unknown
+                )
+                | (
+                    PartiallyFilled,
+                    PartiallyFilled | Filled | CancelPending | Cancelled | Unknown
+                )
+                | (
+                    CancelPending,
+                    Cancelled | PartiallyFilled | Filled | Unknown
+                )
+                | (
+                    Unknown,
+                    Reconciled
+                        | Submitted
+                        | Acknowledged
+                        | PartiallyFilled
+                        | Filled
+                        | Cancelled
+                        | Rejected
+                )
         )
     }
 }
@@ -306,8 +336,7 @@ impl OrderIntent {
     }
 
     pub fn notional(&self, market_ref: Option<Decimal>) -> Option<Decimal> {
-        self.reference_price(market_ref)
-            .map(|p| p * self.quantity)
+        self.reference_price(market_ref).map(|p| p * self.quantity)
     }
 }
 
@@ -340,7 +369,11 @@ impl Order {
         self.quantity - self.filled_quantity
     }
 
-    pub fn apply_status(&mut self, to: OrderStatus, now: TimestampMs) -> std::result::Result<(), String> {
+    pub fn apply_status(
+        &mut self,
+        to: OrderStatus,
+        now: TimestampMs,
+    ) -> std::result::Result<(), String> {
         if self.status == to {
             self.updated_at = now;
             return Ok(());

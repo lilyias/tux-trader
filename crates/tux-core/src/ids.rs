@@ -8,7 +8,9 @@ use uuid::Uuid;
 pub type TimestampMs = i64;
 
 /// Monotonic event sequence (config changes apply on event boundaries).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Serialize, Deserialize,
+)]
 pub struct EventSeq(pub u64);
 
 impl fmt::Display for EventSeq {

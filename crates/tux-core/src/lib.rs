@@ -16,8 +16,8 @@ pub mod store;
 
 pub use error::{Result, TuxError};
 pub use ids::{
-    AccountId, ClientOrderId, ConfigVersionId, Environment, EventSeq, FillId, IntentId, MarketContext,
-    OrderId, Product, StrategyId, StrategyInstanceId, TimestampMs, Venue,
+    AccountId, ClientOrderId, ConfigVersionId, Environment, EventSeq, FillId, IntentId,
+    MarketContext, OrderId, Product, StrategyId, StrategyInstanceId, TimestampMs, Venue,
 };
 
 /// Live trading is refused until every risk control is production-validated.

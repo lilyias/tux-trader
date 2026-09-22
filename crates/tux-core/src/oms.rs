@@ -107,9 +107,7 @@ impl Oms {
     pub fn create_from_intent(&mut self, intent: &OrderIntent) -> Result<Order> {
         if let Some(id) = self.by_intent.get(intent.id.as_str()) {
             if let Some(o) = self.orders.get(id) {
-                if o.side != intent.side
-                    || o.quantity != intent.quantity
-                    || o.price != intent.price
+                if o.side != intent.side || o.quantity != intent.quantity || o.price != intent.price
                 {
                     return Err(TuxError::InvalidOrder(format!(
                         "intent {} payload conflict",
@@ -171,11 +169,7 @@ impl Oms {
         );
     }
 
-    pub async fn submit(
-        &mut self,
-        order_id: &OrderId,
-        port: &dyn ExecutionPort,
-    ) -> Result<Order> {
+    pub async fn submit(&mut self, order_id: &OrderId, port: &dyn ExecutionPort) -> Result<Order> {
         let mut order = self
             .orders
             .get(order_id.as_str())
@@ -226,9 +220,9 @@ impl Default for Oms {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rust_decimal::Decimal;
     use crate::domain::*;
     use crate::ids::*;
+    use rust_decimal::Decimal;
 
     fn sample() -> Order {
         let now = now_ms();

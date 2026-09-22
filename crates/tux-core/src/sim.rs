@@ -193,13 +193,7 @@ impl PaperEngine {
         fills
     }
 
-    fn apply_fill(
-        &self,
-        order: &mut Order,
-        price: Decimal,
-        qty: Decimal,
-        is_maker: bool,
-    ) -> Fill {
+    fn apply_fill(&self, order: &mut Order, price: Decimal, qty: Decimal, is_maker: bool) -> Fill {
         let notional = price * qty;
         let rate = if is_maker {
             self.fill_model.maker_fee
@@ -214,9 +208,7 @@ impl PaperEngine {
         order.filled_quantity += qty;
         order.avg_fill_price = Some(match order.filled_quantity.is_zero() {
             true => price,
-            false => {
-                (prev_avg * prev_filled + price * qty) / order.filled_quantity
-            }
+            false => (prev_avg * prev_filled + price * qty) / order.filled_quantity,
         });
         order.updated_at = now;
         order.venue_order_id = Some(format!("paper_{}", order.id));
@@ -282,7 +274,12 @@ impl PaperEngine {
                     OrderSide::Buy => top.map(|t| t.ask_qty).unwrap_or(qty),
                     OrderSide::Sell => top.map(|t| t.bid_qty).unwrap_or(qty),
                 };
-                let qty = clip_qty(qty, avail, self.fill_model.kind, self.fill_model.random_seed);
+                let qty = clip_qty(
+                    qty,
+                    avail,
+                    self.fill_model.kind,
+                    self.fill_model.random_seed,
+                );
                 if qty <= Decimal::ZERO {
                     return None;
                 }
@@ -308,7 +305,12 @@ impl PaperEngine {
                     OrderSide::Buy => top.ask_qty,
                     OrderSide::Sell => top.bid_qty,
                 };
-                let qty = clip_qty(order.remaining(), avail, self.fill_model.kind, self.fill_model.random_seed);
+                let qty = clip_qty(
+                    order.remaining(),
+                    avail,
+                    self.fill_model.kind,
+                    self.fill_model.random_seed,
+                );
                 if qty <= Decimal::ZERO {
                     return None;
                 }
@@ -322,7 +324,9 @@ impl PaperEngine {
         match order.order_type {
             OrderType::Market | OrderType::Limit | OrderType::PostOnly => {
                 let Some(top) = top else {
-                    return if order.order_type == OrderType::Market && self.fill_model.kind == FillModelKind::Immediate {
+                    return if order.order_type == OrderType::Market
+                        && self.fill_model.kind == FillModelKind::Immediate
+                    {
                         order.remaining()
                     } else {
                         Decimal::ZERO
@@ -406,9 +410,11 @@ impl ExecutionPort for PaperEngine {
         // Detect duplicate client_order_id (restart safety).
         {
             let inner = self.lock_orders();
-            if inner.orders.values().any(|o| {
-                o.client_order_id == order.client_order_id && !o.status.is_terminal()
-            }) {
+            if inner
+                .orders
+                .values()
+                .any(|o| o.client_order_id == order.client_order_id && !o.status.is_terminal())
+            {
                 return Err(TuxError::InvalidOrder(format!(
                     "duplicate client_order_id {}",
                     order.client_order_id
@@ -527,7 +533,9 @@ impl ExecutionPort for PaperEngine {
                 Ok(o.clone())
             }
             s if s.is_terminal() => Ok(o.clone()),
-            s => Err(TuxError::InvalidOrder(format!("cannot cancel order in {s}"))),
+            s => Err(TuxError::InvalidOrder(format!(
+                "cannot cancel order in {s}"
+            ))),
         }
     }
 

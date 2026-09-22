@@ -1,7 +1,7 @@
 //! Latest top-of-book / trade state for risk and paper matching.
 
-use std::collections::HashMap;
 use rust_decimal::Decimal;
+use std::collections::HashMap;
 
 use crate::domain::InstrumentId;
 use crate::events::{BookTicker, TradeTick};

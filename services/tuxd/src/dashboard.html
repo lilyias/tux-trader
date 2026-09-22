@@ -1,413 +1,452 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-CN">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>TUX Console — Local Paper</title>
-<style>
-  :root {
-    --bg: #0b0f14;
-    --panel: #121820;
-    --panel-2: #18212c;
-    --ink: #e6edf3;
-    --muted: #8b9bb4;
-    --line: #243041;
-    --accent: #2dd4a8;
-    --danger: #f07178;
-    --warn: #e6c07b;
-  }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0;
-    font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-    background: var(--bg);
-    color: var(--ink);
-    line-height: 1.45;
-  }
-  header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 14px 20px;
-    border-bottom: 1px solid var(--line);
-    background: var(--panel);
-  }
-  header h1 {
-    margin: 0;
-    font-size: 15px;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-  }
-  header h1 span { color: var(--accent); }
-  .pill {
-    font-size: 11px;
-    padding: 3px 10px;
-    border-radius: 999px;
-    border: 1px solid var(--line);
-    color: var(--muted);
-  }
-  .pill.ok { color: var(--accent); border-color: #1d5c4a; }
-  .pill.bad { color: var(--danger); border-color: #6b3038; }
-  main {
-    max-width: 1100px;
-    margin: 0 auto;
-    padding: 18px 20px 40px;
-  }
-  .grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 12px;
-    margin-bottom: 14px;
-  }
-  .card {
-    background: var(--panel);
-    border: 1px solid var(--line);
-    border-radius: 10px;
-    padding: 12px 14px;
-  }
-  .card .label {
-    font-size: 11px;
-    color: var(--muted);
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-  }
-  .card .value {
-    font-size: 22px;
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-    margin-top: 4px;
-  }
-  .card .value.neg { color: var(--danger); }
-  .card .value.pos { color: var(--accent); }
-  .row {
-    display: grid;
-    grid-template-columns: 1.4fr 1fr;
-    gap: 12px;
-    margin-bottom: 14px;
-  }
-  @media (max-width: 860px) {
-    .grid { grid-template-columns: repeat(2, 1fr); }
-    .row { grid-template-columns: 1fr; }
-  }
-  h2 {
-    margin: 0 0 10px;
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--muted);
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-  }
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 12px;
-    font-variant-numeric: tabular-nums;
-  }
-  th, td {
-    text-align: left;
-    padding: 7px 8px;
-    border-bottom: 1px solid var(--line);
-  }
-  th { color: var(--muted); font-weight: 500; }
-  tr:last-child td { border-bottom: none; }
-  .mono { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: 11px; color: var(--muted); }
-  .buy { color: var(--accent); }
-  .sell { color: var(--danger); }
-  #chart-wrap, #price-wrap { height: 180px; position: relative; }
-  #price-wrap { height: 160px; }
-  svg { width: 100%; height: 100%; display: block; }
-  .tip {
-    position: absolute;
-    pointer-events: none;
-    display: none;
-    background: #1a2330;
-    border: 1px solid var(--line);
-    border-radius: 6px;
-    padding: 6px 8px;
-    font-size: 11px;
-    font-variant-numeric: tabular-nums;
-    color: var(--ink);
-    transform: translate(-50%, -115%);
-    white-space: nowrap;
-    z-index: 5;
-    box-shadow: 0 4px 14px rgba(0,0,0,.35);
-  }
-  .tip .t { color: var(--muted); }
-  .tip .p { color: var(--accent); font-weight: 600; }
-  .empty { color: var(--muted); padding: 16px; text-align: center; font-size: 12px; }
-  .muted { color: var(--muted); }
-</style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link rel="icon" href="data:,">
+  <title>TUX Strategy Console</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #080c12;
+      --surface: #101721;
+      --surface-2: #151e2a;
+      --line: #243142;
+      --text: #edf3f8;
+      --muted: #8c9caf;
+      --green: #35d39a;
+      --blue: #63a7ff;
+      --red: #ff7184;
+      --amber: #f2bd5a;
+      --shadow: 0 16px 42px rgba(0,0,0,.24);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at 18% -8%, rgba(46,119,202,.16), transparent 30rem),
+        radial-gradient(circle at 88% 8%, rgba(53,211,154,.09), transparent 24rem),
+        var(--bg);
+      color: var(--text);
+      font: 14px/1.5 Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", "PingFang SC", sans-serif;
+    }
+    button, input, select { font: inherit; }
+    header {
+      height: 66px;
+      padding: 0 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--line);
+      background: rgba(8,12,18,.82);
+      backdrop-filter: blur(18px);
+      position: sticky;
+      top: 0;
+      z-index: 20;
+    }
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .mark {
+      width: 34px; height: 34px; border-radius: 10px;
+      display: grid; place-items: center; font-weight: 850; color: #07120f;
+      background: linear-gradient(135deg, var(--green), #7cf3cd);
+      box-shadow: 0 0 28px rgba(53,211,154,.2);
+    }
+    .brand strong { display: block; letter-spacing: .04em; }
+    .brand small { color: var(--muted); }
+    .header-state { display: flex; gap: 8px; align-items: center; }
+    .pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      min-height: 28px; padding: 3px 10px; border: 1px solid var(--line);
+      border-radius: 999px; color: var(--muted); font-size: 12px;
+    }
+    .pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+    .pill.ok { color: var(--green); border-color: rgba(53,211,154,.35); }
+    .pill.warn { color: var(--amber); border-color: rgba(242,189,90,.35); }
+    .pill.bad { color: var(--red); border-color: rgba(255,113,132,.35); }
+    main { max-width: 1380px; margin: 0 auto; padding: 24px 28px 48px; }
+    .topline { display: flex; justify-content: space-between; align-items: end; margin-bottom: 14px; }
+    .topline h1 { font-size: 19px; margin: 0; letter-spacing: -.02em; }
+    .topline p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+    .updated { color: var(--muted); font-size: 12px; }
+    .grid { display: grid; gap: 14px; }
+    .kpis { grid-template-columns: 1.35fr repeat(3, 1fr); margin-bottom: 14px; }
+    .workspace { grid-template-columns: minmax(0, 1.55fr) minmax(370px, .85fr); align-items: start; }
+    .two { grid-template-columns: 1fr 1fr; }
+    .card {
+      border: 1px solid var(--line); border-radius: 14px; background: rgba(16,23,33,.94);
+      box-shadow: var(--shadow); min-width: 0;
+    }
+    .pad { padding: 18px; }
+    .card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+    .card-head h2 { margin: 0; font-size: 13px; letter-spacing: .04em; }
+    .card-head span { color: var(--muted); font-size: 11px; }
+    .metric { padding: 16px 18px; }
+    .metric .label { color: var(--muted); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; }
+    .metric .value { margin-top: 6px; font-size: 24px; font-weight: 720; font-variant-numeric: tabular-nums; }
+    .metric .sub { color: var(--muted); font-size: 11px; margin-top: 3px; }
+    .price-card { background: linear-gradient(135deg, rgba(26,52,70,.96), rgba(15,28,39,.96)); }
+    .price-line { display: flex; align-items: baseline; gap: 10px; }
+    .price-line .value { font-size: 31px; }
+    .change.pos, .positive { color: var(--green); }
+    .change.neg, .negative { color: var(--red); }
+    .book { display: flex; gap: 16px; margin-top: 5px; color: var(--muted); font-size: 11px; }
+    .chart-box { height: 260px; position: relative; }
+    svg { display: block; width: 100%; height: 100%; overflow: visible; }
+    .chart-empty { display: grid; place-items: center; height: 100%; color: var(--muted); }
+    .strategy-hero { display: flex; gap: 14px; align-items: center; }
+    .strategy-icon { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; background: rgba(99,167,255,.12); color: var(--blue); font-weight: 800; }
+    .strategy-title { flex: 1; }
+    .strategy-title strong { display: block; font-size: 16px; }
+    .strategy-title small { color: var(--muted); }
+    .facts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 16px; }
+    .fact { padding: 10px 11px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); }
+    .fact span { display: block; color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .05em; }
+    .fact b { display: block; margin-top: 3px; font-size: 12px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+    button {
+      border: 1px solid var(--line); border-radius: 9px; padding: 8px 12px;
+      background: #192331; color: var(--text); cursor: pointer; transition: .16s ease;
+    }
+    button:hover { transform: translateY(-1px); border-color: #3b506b; background: #1d2a39; }
+    button:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+    button.primary { background: var(--green); border-color: var(--green); color: #06120e; font-weight: 700; }
+    button.danger { color: var(--red); border-color: rgba(255,113,132,.35); }
+    button.quiet { background: transparent; }
+    form { margin: 0; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; }
+    label { color: var(--muted); font-size: 11px; }
+    input, select {
+      width: 100%; margin-top: 5px; padding: 9px 10px; border: 1px solid var(--line);
+      border-radius: 9px; background: #0d141d; color: var(--text); outline: none;
+    }
+    input:focus, select:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(99,167,255,.1); }
+    .form-note { color: var(--muted); font-size: 11px; margin: 10px 0 0; }
+    .form-submit { width: 100%; margin-top: 13px; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+    th, td { padding: 9px 10px; text-align: left; border-bottom: 1px solid var(--line); white-space: nowrap; }
+    th { color: var(--muted); font-weight: 500; font-size: 10px; text-transform: uppercase; letter-spacing: .04em; }
+    tr:last-child td { border-bottom: 0; }
+    .table-wrap { overflow-x: auto; }
+    .mono { font-family: ui-monospace, "Cascadia Code", monospace; color: var(--muted); }
+    .buy { color: var(--green); }
+    .sell { color: var(--red); }
+    .status-ok { color: var(--green); }
+    .status-fail { color: var(--red); }
+    .detail { max-width: 360px; overflow: hidden; text-overflow: ellipsis; }
+    .stack { display: grid; gap: 14px; }
+    .empty { color: var(--muted); text-align: center; padding: 20px !important; }
+    #toast {
+      position: fixed; right: 22px; bottom: 22px; z-index: 50; max-width: 380px;
+      padding: 11px 14px; border: 1px solid var(--line); border-radius: 10px;
+      background: #182331; box-shadow: var(--shadow); opacity: 0; transform: translateY(12px); pointer-events: none; transition: .2s;
+    }
+    #toast.show { opacity: 1; transform: translateY(0); }
+    #toast.error { border-color: rgba(255,113,132,.5); color: var(--red); }
+    @media (max-width: 1040px) {
+      .kpis { grid-template-columns: 1fr 1fr; }
+      .workspace { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 680px) {
+      header { padding: 0 16px; }
+      main { padding: 18px 14px 36px; }
+      .header-state .pill:first-child { display: none; }
+      .kpis, .two, .form-grid { grid-template-columns: 1fr; }
+      .facts { grid-template-columns: 1fr 1fr; }
+      .topline { align-items: start; flex-direction: column; gap: 5px; }
+    }
+  </style>
 </head>
 <body>
-<header>
-  <h1><span>TUX</span> Console · Local Paper</h1>
-  <div>
-    <span id="kill" class="pill">risk</span>
-    <span id="status" class="pill">loading</span>
-  </div>
-</header>
-<main>
-  <section class="grid" id="kpis">
-    <div class="card"><div class="label">SOL-USDT Mid</div><div class="value" id="last_px">—</div></div>
-    <div class="card"><div class="label">Range Δ</div><div class="value" id="px_chg">—</div></div>
-    <div class="card"><div class="label">Equity</div><div class="value" id="equity">—</div></div>
-    <div class="card"><div class="label">Net PnL</div><div class="value" id="net_pnl">—</div></div>
-  </section>
-
-  <div class="card" style="margin-bottom:14px">
-    <h2>SOL-USDT price trend <span class="muted" id="px-meta"></span></h2>
-    <div id="price-wrap">
-      <svg id="price-chart" viewBox="0 0 640 160" preserveAspectRatio="none" aria-label="price trend"></svg>
-      <div class="tip" id="price-tip"></div>
+  <header>
+    <div class="brand">
+      <div class="mark">T</div>
+      <div><strong>TUX Strategy Console</strong><small>Local Paper · 实时策略控制</small></div>
     </div>
-  </div>
+    <div class="header-state">
+      <span id="risk-pill" class="pill">风控检查中</span>
+      <span id="feed-pill" class="pill">行情连接中</span>
+    </div>
+  </header>
 
-  <div class="row">
-    <div class="card">
-      <h2>Equity curve</h2>
-      <div id="chart-wrap">
-        <svg id="chart" viewBox="0 0 640 180" preserveAspectRatio="none" aria-label="equity curve"></svg>
-        <div class="tip" id="equity-tip"></div>
+  <main>
+    <div class="topline">
+      <div><h1>交易运行总览</h1><p>策略操作与手动订单均经过同一风控、OMS 和 Paper 撮合链路。</p></div>
+      <div id="updated" class="updated">等待数据</div>
+    </div>
+
+    <section class="grid kpis">
+      <article class="card metric price-card">
+        <div class="label" id="instrument-label">SOL-USDT 实时中间价</div>
+        <div class="price-line"><div class="value" id="mid-price">—</div><span id="price-change" class="change">—</span></div>
+        <div class="book"><span>Bid <b id="bid-price">—</b></span><span>Ask <b id="ask-price">—</b></span><span id="market-age">—</span></div>
+      </article>
+      <article class="card metric"><div class="label">账户权益</div><div class="value" id="equity">—</div><div class="sub" id="balances">—</div></article>
+      <article class="card metric"><div class="label">净收益</div><div class="value" id="net-pnl">—</div><div class="sub" id="fees">手续费 —</div></article>
+      <article class="card metric"><div class="label">订单 / 成交</div><div class="value" id="activity">—</div><div class="sub">当前活动订单 / 累计成交</div></article>
+    </section>
+
+    <div class="grid workspace">
+      <div class="stack">
+        <section class="card pad">
+          <div class="card-head"><h2>实时价格趋势</h2><span id="trend-meta">最近 180 个采样点</span></div>
+          <div class="chart-box" id="price-chart-wrap"><svg id="price-chart" viewBox="0 0 900 260" preserveAspectRatio="none"></svg></div>
+        </section>
+
+        <section class="card pad">
+          <div class="card-head"><h2>策略操作历史</h2><span>配置、控制、自动信号与手动干预</span></div>
+          <div class="table-wrap">
+            <table><thead><tr><th>时间</th><th>操作</th><th>来源</th><th>状态</th><th>详情</th></tr></thead><tbody id="history-body"></tbody></table>
+          </div>
+        </section>
+
+        <div class="grid two">
+          <section class="card pad">
+            <div class="card-head"><h2>最近订单</h2><span id="orders-count">0 条</span></div>
+            <div class="table-wrap"><table><thead><tr><th>时间</th><th>方向</th><th>类型</th><th>状态</th><th>价格</th><th>成交量</th></tr></thead><tbody id="orders-body"></tbody></table></div>
+          </section>
+          <section class="card pad">
+            <div class="card-head"><h2>最近成交</h2><span id="fills-count">0 条</span></div>
+            <div class="table-wrap"><table><thead><tr><th>时间</th><th>方向</th><th>价格</th><th>数量</th><th>手续费</th></tr></thead><tbody id="fills-body"></tbody></table></div>
+          </section>
+        </div>
       </div>
+
+      <aside class="stack">
+        <section class="card pad">
+          <div class="strategy-hero">
+            <div class="strategy-icon">S1</div>
+            <div class="strategy-title"><strong id="strategy-name">加载策略…</strong><small id="strategy-version">—</small></div>
+            <span id="strategy-status" class="pill">—</span>
+          </div>
+          <div class="facts">
+            <div class="fact"><span>实例</span><b id="strategy-id">—</b></div>
+            <div class="fact"><span>账户</span><b id="strategy-account">—</b></div>
+            <div class="fact"><span>交易对</span><b id="strategy-instrument">—</b></div>
+            <div class="fact"><span>信号</span><b id="signal-count">0</b></div>
+            <div class="fact"><span>订单</span><b id="strategy-orders">0</b></div>
+            <div class="fact"><span>成交</span><b id="strategy-fills">0</b></div>
+          </div>
+          <div class="actions">
+            <button class="primary" data-strategy-action="trigger">立即执行一次</button>
+            <button data-strategy-action="pause">暂停</button>
+            <button data-strategy-action="resume">恢复</button>
+            <button class="danger quiet" data-strategy-action="stop">停止</button>
+          </div>
+          <p class="form-note" id="strategy-last">尚无最近操作</p>
+        </section>
+
+        <section class="card pad">
+          <div class="card-head"><h2>策略参数</h2><span id="config-revision">revision —</span></div>
+          <form id="config-form">
+            <div class="form-grid">
+              <label>方向<select name="side"><option value="buy">买入</option><option value="sell">卖出</option></select></label>
+              <label>订单类型<select name="order_type"><option value="limit">限价</option><option value="market">市价</option></select></label>
+              <label>数量<input name="quantity" inputmode="decimal" value="0.5" required></label>
+              <label>有效期<select name="time_in_force"><option value="gtc">GTC</option><option value="ioc">IOC</option><option value="fok">FOK</option></select></label>
+              <label style="grid-column:1/-1">限价偏移（bps）<input name="limit_offset_bps" inputmode="decimal" value="0" required></label>
+            </div>
+            <p class="form-note">正数提高买价/降低卖价，负数更偏向 Maker；允许范围 ±1000 bps。</p>
+            <button class="primary form-submit" type="submit">保存策略参数</button>
+          </form>
+        </section>
+
+        <section class="card pad">
+          <div class="card-head"><h2>手动干预</h2><span>Local Paper only</span></div>
+          <form id="manual-form">
+            <div class="form-grid">
+              <label>方向<select name="side"><option value="buy">买入</option><option value="sell">卖出</option></select></label>
+              <label>订单类型<select name="order_type" id="manual-type"><option value="market">市价</option><option value="limit">限价</option><option value="post_only">Post-only</option></select></label>
+              <label>数量<input name="quantity" inputmode="decimal" value="0.1" required></label>
+              <label>价格<input name="price" id="manual-price" inputmode="decimal" placeholder="市价单无需填写" disabled></label>
+              <label style="grid-column:1/-1">有效期<select name="time_in_force"><option value="gtc">GTC</option><option value="ioc">IOC</option><option value="fok">FOK</option></select></label>
+            </div>
+            <p class="form-note">手动订单不会绕过风控；失败原因会写入策略操作历史。</p>
+            <button class="form-submit" type="submit">提交手动订单</button>
+          </form>
+        </section>
+      </aside>
     </div>
-    <div class="card">
-      <h2>PnL breakdown</h2>
-      <table>
-        <tbody id="pnl-breakdown">
-          <tr><td class="muted">gross realized</td><td id="gross_realized_pnl">—</td></tr>
-          <tr><td class="muted">unrealized</td><td id="unrealized_pnl">—</td></tr>
-          <tr><td class="muted">trading fees</td><td id="trading_fees">—</td></tr>
-          <tr><td class="muted">funding</td><td id="funding_fees">—</td></tr>
-          <tr><td class="muted">borrow interest</td><td id="borrow_interest">—</td></tr>
-          <tr><td class="muted">net pnl</td><td id="net_pnl2">—</td></tr>
-          <tr><td class="muted">fills / open</td><td id="counts2">—</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
+  </main>
+  <div id="toast"></div>
 
-  <div class="row">
-    <div class="card">
-      <h2>Recent fills</h2>
-      <table>
-        <thead>
-          <tr><th>Time</th><th>Side</th><th>Price</th><th>Qty</th><th>Fee</th></tr>
-        </thead>
-        <tbody id="fills"></tbody>
-      </table>
-    </div>
-    <div class="card">
-      <h2>Recent orders</h2>
-      <table>
-        <thead>
-          <tr><th>Time</th><th>Side</th><th>Status</th><th>Price</th><th>Filled</th></tr>
-        </thead>
-        <tbody id="orders"></tbody>
-      </table>
-    </div>
-  </div>
-</main>
-<script>
-const $ = (id) => document.getElementById(id);
+  <script>
+    const $ = id => document.getElementById(id);
+    const esc = value => String(value ?? "—").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+    const number = value => Number(value);
+    const fmt = (value, digits = 6) => Number.isFinite(number(value)) ? number(value).toLocaleString("zh-CN", {maximumFractionDigits: digits}) : "—";
+    const time = value => value ? new Date(Number(value)).toLocaleString("zh-CN", {hour12:false}) : "—";
+    let configInitialized = false;
+    let lastMid = null;
 
-function fmtNum(n) {
-  const x = Number(n);
-  if (!isFinite(x)) return "—";
-  return x.toLocaleString("en-US", { maximumFractionDigits: 6 });
-}
-function fmtTime(ms) {
-  if (!ms) return "—";
-  const d = new Date(Number(ms));
-  return d.toISOString().slice(11, 19);
-}
-function setVal(id, v, signed) {
-  const el = $(id);
-  el.textContent = fmtNum(v);
-  el.classList.remove("pos", "neg");
-  const x = Number(v);
-  if (signed && isFinite(x)) {
-    if (x > 0) el.classList.add("pos");
-    if (x < 0) el.classList.add("neg");
-  }
-}
-
-function fmtTimeFull(ms) {
-  if (!ms) return "—";
-  const d = new Date(Number(ms));
-  return d.toISOString().replace("T", " ").slice(0, 23) + "Z";
-}
-
-function drawSeries(svgId, tipId, rows, field, color, emptyMsg, fmtY) {
-  const svg = $(svgId);
-  const tip = tipId ? $(tipId) : null;
-  svg.innerHTML = "";
-  const W = 640, H = svgId === "price-chart" ? 160 : 180, pad = 8;
-  if (!rows || rows.length === 0) {
-    svg.innerHTML = `<text x="320" y="${H / 2}" fill="#8b9bb4" text-anchor="middle" font-size="12">${emptyMsg}</text>`;
-    return;
-  }
-  const ys = rows.map(p => Number(p[field]));
-  let min = Math.min(...ys), max = Math.max(...ys);
-  if (min === max) { min -= 1; max += 1; }
-  const n = ys.length;
-  const xAt = (i) => pad + (i / Math.max(n - 1, 1)) * (W - pad * 2);
-  const yAt = (y) => H - pad - ((y - min) / (max - min)) * (H - pad * 2);
-  let d = "";
-  ys.forEach((y, i) => {
-    d += (i === 0 ? "M" : "L") + xAt(i).toFixed(1) + "," + yAt(y).toFixed(1) + " ";
-  });
-  const area = d + `L${xAt(n - 1).toFixed(1)},${H - pad} L${xAt(0).toFixed(1)},${H - pad} Z`;
-  const gid = "g-" + svgId;
-  svg.innerHTML = `
-    <defs>
-      <linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="${color}" stop-opacity="0.28"/>
-        <stop offset="100%" stop-color="${color}" stop-opacity="0"/>
-      </linearGradient>
-    </defs>
-    <path d="${area}" fill="url(#${gid})" />
-    <path d="${d}" fill="none" stroke="${color}" stroke-width="1.5" />
-    <line id="${svgId}-cursor" x1="0" y1="${pad}" x2="0" y2="${H - pad}" stroke="${color}" stroke-opacity="0.4" stroke-width="1" style="display:none" />
-    <circle id="${svgId}-dot" r="3.5" fill="${color}" style="display:none" />
-    <rect x="0" y="0" width="${W}" height="${H}" fill="transparent" />
-  `;
-
-  if (!tip) return;
-  const wrap = svg.parentElement;
-  const cursor = $(svgId + "-cursor");
-  const dot = $(svgId + "-dot");
-  wrap.onmousemove = (e) => {
-    const rect = svg.getBoundingClientRect();
-    const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    const i = Math.max(0, Math.min(n - 1, Math.round(ratio * (n - 1))));
-    const x = xAt(i), y = yAt(ys[i]);
-    if (cursor) {
-      cursor.style.display = "";
-      cursor.setAttribute("x1", x);
-      cursor.setAttribute("x2", x);
-    }
-    if (dot) {
-      dot.style.display = "";
-      dot.setAttribute("cx", x);
-      dot.setAttribute("cy", y);
-    }
-    const row = rows[i];
-    tip.innerHTML = `<div class="t">${fmtTimeFull(row.ts)}</div><div class="p">${fmtY(row[field])}</div>`;
-    tip.style.display = "block";
-    const wr = wrap.getBoundingClientRect();
-    tip.style.left = Math.max(50, Math.min(wr.width - 50, e.clientX - wr.left)) + "px";
-    tip.style.top = Math.max(30, (y / H) * wr.height) + "px";
-  };
-  wrap.onmouseleave = () => {
-    tip.style.display = "none";
-    if (cursor) cursor.style.display = "none";
-    if (dot) dot.style.display = "none";
-  };
-}
-
-function drawChart(points) {
-  drawSeries("chart", "equity-tip", points, "equity", "#2dd4a8", "no equity points yet",
-    (v) => "equity " + Number(v).toFixed(4));
-}
-
-function drawPrice(points) {
-  drawSeries("price-chart", "price-tip", points, "mid", "#6ea8fe", "no price ticks yet",
-    (v) => Number(v).toLocaleString("en-US", { maximumFractionDigits: 4 }) + " USDT");
-  const ys = (points || []).map(p => Number(p.mid));
-  if (!ys.length) {
-    $("last_px").textContent = "—";
-    $("px_chg").textContent = "—";
-    $("px_chg").classList.remove("pos", "neg");
-    $("px-meta").textContent = "";
-    return;
-  }
-  const last = ys[ys.length - 1];
-  const first = ys[0];
-  const chg = first !== 0 ? ((last - first) / first) * 100 : 0;
-  $("last_px").textContent = last.toLocaleString("en-US", { maximumFractionDigits: 4 });
-  $("px_chg").textContent = (chg >= 0 ? "+" : "") + chg.toFixed(2) + "%";
-  $("px_chg").classList.remove("pos", "neg");
-  $("px_chg").classList.add(chg >= 0 ? "pos" : "neg");
-  $("px-meta").textContent =
-    `· ${ys.length} ticks · ${fmtNum(Math.min(...ys))} – ${fmtNum(Math.max(...ys))} · Binance SOLUSDT live`;
-}
-
-async function load() {
-  try {
-    const [ov, fills, orders, equity, balances, prices] = await Promise.all([
-      fetch("/api/overview").then(r => r.json()),
-      fetch("/api/fills?limit=12").then(r => r.json()),
-      fetch("/api/orders?limit=12").then(r => r.json()),
-      fetch("/api/equity?limit=200").then(r => r.json()),
-      fetch("/api/balances").then(r => r.json()),
-      fetch("/api/prices?limit=120").then(r => r.json()),
-    ]);
-
-    setVal("equity", ov.equity);
-    setVal("net_pnl", ov.net_pnl, true);
-    setVal("net_pnl2", ov.net_pnl, true);
-    $("counts2").textContent = `${ov.fills} / ${ov.open_orders}`;
-    setVal("gross_realized_pnl", ov.gross_realized_pnl, true);
-    setVal("unrealized_pnl", ov.unrealized_pnl, true);
-    setVal("trading_fees", ov.trading_fees);
-    setVal("funding_fees", ov.funding_fees, true);
-    setVal("borrow_interest", ov.borrow_interest);
-    setVal("net_pnl2", ov.net_pnl, true);
-
-    const kill = $("kill");
-    if (ov.kill_switch) {
-      kill.textContent = "kill switch ON";
-      kill.className = "pill bad";
-    } else {
-      kill.textContent = "risk active";
-      kill.className = "pill ok";
+    async function request(url, options) {
+      const response = await fetch(url, {headers:{"content-type":"application/json"}, ...options});
+      let body = null;
+      try { body = await response.json(); } catch (_) {}
+      if (!response.ok) throw new Error(body?.error || `${response.status} ${response.statusText}`);
+      return body;
     }
 
-    drawPrice(prices);
-    drawChart(equity);
-
-    const fillsBody = $("fills");
-    fillsBody.innerHTML = fills.length === 0
-      ? '<tr><td colspan="5" class="empty">no fills</td></tr>'
-      : fills.map(f => `
-        <tr>
-          <td class="mono">${fmtTime(f.occurred_at)}</td>
-          <td class="${f.side.includes("Buy") || f.side === "buy" ? "buy" : "sell"}">${String(f.side).replace(/[{}\"]/g, "")}</td>
-          <td>${fmtNum(f.price)}</td>
-          <td>${fmtNum(f.quantity)}</td>
-          <td>${fmtNum(f.fee_amount)}</td>
-        </tr>`).join("");
-
-    const ordersBody = $("orders");
-    ordersBody.innerHTML = orders.length === 0
-      ? '<tr><td colspan="5" class="empty">no orders</td></tr>'
-      : orders.map(o => `
-        <tr>
-          <td class="mono">${fmtTime(o.created_at)}</td>
-          <td class="${String(o.side).includes("Buy") || o.side === "buy" ? "buy" : "sell"}">${String(o.side).replace(/[{}\"]/g, "")}</td>
-          <td>${o.status}</td>
-          <td>${fmtNum(o.price)}</td>
-          <td>${fmtNum(o.filled_quantity)}</td>
-        </tr>`).join("");
-
-    // balances strip
-    if (balances && balances.length) {
-      const btxt = balances.map(b => `${b.asset}=${fmtNum(b.free)}`).join("  ");
-      $("status").textContent = btxt;
-      $("status").className = "pill ok";
-    } else {
-      $("status").textContent = "ready";
-      $("status").className = "pill ok";
+    function toast(message, error = false) {
+      const node = $("toast");
+      node.textContent = message;
+      node.className = `show${error ? " error" : ""}`;
+      clearTimeout(toast.timer);
+      toast.timer = setTimeout(() => node.className = "", 3200);
     }
-  } catch (e) {
-    $("status").textContent = "error";
-    $("status").className = "pill bad";
-    console.error(e);
-  }
-}
 
-load();
-setInterval(load, 4000);
-</script>
+    function statusPill(node, status) {
+      node.textContent = status;
+      node.className = "pill " + (status === "running" ? "ok" : status === "paused" ? "warn" : "bad");
+    }
+
+    function drawTrend(points) {
+      const svg = $("price-chart");
+      const rows = (points || []).filter(row => Number.isFinite(number(row.mid)));
+      if (!rows.length) {
+        svg.innerHTML = '<text x="450" y="130" text-anchor="middle" fill="#8c9caf">等待实时行情</text>';
+        return;
+      }
+      const width = 900, height = 260, xPad = 10, yPad = 18;
+      const values = rows.map(row => number(row.mid));
+      let min = Math.min(...values), max = Math.max(...values);
+      if (min === max) { min -= 1; max += 1; }
+      const x = i => xPad + i / Math.max(rows.length - 1, 1) * (width - xPad * 2);
+      const y = value => height - yPad - (value - min) / (max - min) * (height - yPad * 2);
+      const line = values.map((value, index) => `${index ? "L" : "M"}${x(index).toFixed(1)},${y(value).toFixed(1)}`).join(" ");
+      const area = `${line} L${x(values.length - 1)},${height-yPad} L${x(0)},${height-yPad} Z`;
+      svg.innerHTML = `<defs><linearGradient id="price-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#63a7ff" stop-opacity=".3"/><stop offset="1" stop-color="#63a7ff" stop-opacity="0"/></linearGradient></defs><path d="${area}" fill="url(#price-fill)"/><path d="${line}" fill="none" stroke="#63a7ff" stroke-width="2" vector-effect="non-scaling-stroke"/><text x="8" y="13" fill="#8c9caf" font-size="10">${fmt(max,4)}</text><text x="8" y="254" fill="#8c9caf" font-size="10">${fmt(min,4)}</text>`;
+      const first = values[0], latest = values.at(-1);
+      const change = first ? (latest - first) / first * 100 : 0;
+      $("price-change").textContent = `${change >= 0 ? "+" : ""}${change.toFixed(2)}%`;
+      $("price-change").className = `change ${change >= 0 ? "pos" : "neg"}`;
+      $("trend-meta").textContent = `${rows.length} 点 · ${fmt(min,4)} – ${fmt(max,4)}`;
+    }
+
+    function renderStrategy(strategy) {
+      $("strategy-name").textContent = strategy.name;
+      $("strategy-version").textContent = `${strategy.environment} · v${strategy.version}`;
+      $("strategy-id").textContent = strategy.strategy_id;
+      $("strategy-account").textContent = strategy.account_id;
+      $("strategy-instrument").textContent = strategy.instrument_id;
+      $("signal-count").textContent = strategy.signals;
+      $("strategy-orders").textContent = strategy.orders;
+      $("strategy-fills").textContent = strategy.fills;
+      $("config-revision").textContent = `revision ${strategy.revision}`;
+      $("strategy-last").textContent = strategy.last_error ? `最近错误：${strategy.last_error}` : strategy.last_order_id ? `最近订单：${strategy.last_order_id}` : "尚无最近订单";
+      statusPill($("strategy-status"), strategy.status);
+      document.querySelectorAll("[data-strategy-action]").forEach(button => {
+        const action = button.dataset.strategyAction;
+        button.disabled = (action === "pause" && strategy.status === "paused") || (action === "resume" && strategy.status === "running") || (action === "trigger" && strategy.status !== "running");
+      });
+      if (!configInitialized) {
+        const form = $("config-form");
+        form.elements.side.value = strategy.parameters.side;
+        form.elements.order_type.value = strategy.parameters.order_type;
+        form.elements.quantity.value = strategy.parameters.quantity;
+        form.elements.time_in_force.value = strategy.parameters.time_in_force;
+        form.elements.limit_offset_bps.value = strategy.parameters.limit_offset_bps;
+        configInitialized = true;
+      }
+    }
+
+    function renderHistory(rows) {
+      $("history-body").innerHTML = rows.length ? rows.map(row => `<tr><td class="mono">${esc(time(row.occurred_at))}</td><td>${esc(row.action)}</td><td>${esc(row.actor)}</td><td class="${row.status === "succeeded" ? "status-ok" : "status-fail"}">${esc(row.status)}</td><td class="detail" title="${esc(row.detail)}">${esc(row.detail)}</td></tr>`).join("") : '<tr><td colspan="5" class="empty">暂无操作历史</td></tr>';
+    }
+
+    function renderOrders(rows) {
+      $("orders-count").textContent = `${rows.length} 条`;
+      $("orders-body").innerHTML = rows.length ? rows.map(row => `<tr><td class="mono">${esc(time(row.created_at))}</td><td class="${String(row.side).toLowerCase().includes("buy") ? "buy" : "sell"}">${esc(row.side)}</td><td>${esc(row.order_type)}</td><td>${esc(row.status)}</td><td>${fmt(row.price,4)}</td><td>${fmt(row.filled_quantity)}</td></tr>`).join("") : '<tr><td colspan="6" class="empty">暂无订单</td></tr>';
+    }
+
+    function renderFills(rows) {
+      $("fills-count").textContent = `${rows.length} 条`;
+      $("fills-body").innerHTML = rows.length ? rows.map(row => `<tr><td class="mono">${esc(time(row.occurred_at))}</td><td class="${String(row.side).toLowerCase().includes("buy") ? "buy" : "sell"}">${esc(row.side)}</td><td>${fmt(row.price,4)}</td><td>${fmt(row.quantity)}</td><td>${fmt(row.fee_amount)}</td></tr>`).join("") : '<tr><td colspan="5" class="empty">暂无成交</td></tr>';
+    }
+
+    async function refresh() {
+      try {
+        const [overview, market, prices, strategy, history, orders, fills, balances] = await Promise.all([
+          request("/api/overview"), request("/api/market").catch(() => null), request("/api/prices?limit=180"),
+          request("/api/strategy"), request("/api/strategy/history?limit=60"), request("/api/orders?limit=16"),
+          request("/api/fills?limit=16"), request("/api/balances")
+        ]);
+        $("equity").textContent = fmt(overview.equity);
+        $("net-pnl").textContent = fmt(overview.net_pnl);
+        $("net-pnl").className = `value ${number(overview.net_pnl) >= 0 ? "positive" : "negative"}`;
+        $("fees").textContent = `手续费 ${fmt(overview.trading_fees)}`;
+        $("activity").textContent = `${overview.open_orders} / ${overview.fills}`;
+        $("balances").textContent = balances.length ? balances.map(row => `${row.asset} ${fmt(row.free)}`).join(" · ") : "暂无余额";
+        const risk = $("risk-pill");
+        risk.textContent = overview.kill_switch ? "Kill Switch 已启用" : "风控正常";
+        risk.className = `pill ${overview.kill_switch ? "bad" : "ok"}`;
+        if (market) {
+          lastMid = market.mid;
+          $("instrument-label").textContent = `${market.instrument_id} 实时中间价`;
+          $("mid-price").textContent = fmt(market.mid, 4);
+          $("bid-price").textContent = fmt(market.bid, 4);
+          $("ask-price").textContent = fmt(market.ask, 4);
+          $("market-age").textContent = `${market.age_ms} ms 前`;
+          $("feed-pill").textContent = market.age_ms < 10000 ? "行情实时" : "行情陈旧";
+          $("feed-pill").className = `pill ${market.age_ms < 10000 ? "ok" : "warn"}`;
+        } else {
+          $("feed-pill").textContent = "等待行情";
+          $("feed-pill").className = "pill warn";
+        }
+        drawTrend(prices);
+        renderStrategy(strategy);
+        renderHistory(history);
+        renderOrders(orders);
+        renderFills(fills);
+        $("updated").textContent = `最后刷新 ${new Date().toLocaleTimeString("zh-CN", {hour12:false})}`;
+      } catch (error) {
+        $("feed-pill").textContent = "控制台连接失败";
+        $("feed-pill").className = "pill bad";
+        console.error(error);
+      }
+    }
+
+    $("config-form").addEventListener("submit", async event => {
+      event.preventDefault();
+      const form = new FormData(event.currentTarget);
+      try {
+        await request("/api/strategy/config", {method:"PUT", body:JSON.stringify(Object.fromEntries(form))});
+        toast("策略参数已保存");
+        configInitialized = false;
+        await refresh();
+      } catch (error) { toast(error.message, true); }
+    });
+
+    document.querySelectorAll("[data-strategy-action]").forEach(button => button.addEventListener("click", async () => {
+      const action = button.dataset.strategyAction;
+      button.disabled = true;
+      try {
+        await request("/api/strategy/control", {method:"POST", body:JSON.stringify({action})});
+        toast({pause:"策略已暂停", resume:"策略已恢复", stop:"策略已停止", trigger:"策略已执行一次"}[action]);
+        await refresh();
+      } catch (error) { toast(error.message, true); }
+      finally { button.disabled = false; }
+    }));
+
+    $("manual-type").addEventListener("change", event => {
+      const market = event.target.value === "market";
+      $("manual-price").disabled = market;
+      $("manual-price").required = !market;
+      if (!market && !$("manual-price").value && lastMid) $("manual-price").value = lastMid;
+    });
+
+    $("manual-form").addEventListener("submit", async event => {
+      event.preventDefault();
+      const form = Object.fromEntries(new FormData(event.currentTarget));
+      if (form.order_type === "market") delete form.price;
+      try {
+        await request("/api/manual/order", {method:"POST", body:JSON.stringify(form)});
+        toast("手动订单已进入执行链路");
+        await refresh();
+      } catch (error) { toast(error.message, true); }
+    });
+
+    refresh();
+    setInterval(refresh, 2000);
+  </script>
 </body>
 </html>

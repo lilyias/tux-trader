@@ -8,8 +8,8 @@ use std::path::Path;
 use std::str::FromStr;
 use std::sync::Mutex;
 
-use rust_decimal::Decimal;
 use rusqlite::{params, Connection, OptionalExtension};
+use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
 use crate::domain::{Fill, Order, OrderStatus};
@@ -33,6 +33,17 @@ pub struct PricePoint {
     pub bid: Decimal,
     pub ask: Decimal,
     pub mid: Decimal,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StrategyOperationRow {
+    pub id: i64,
+    pub strategy_id: String,
+    pub action: String,
+    pub status: String,
+    pub actor: String,
+    pub detail: String,
+    pub occurred_at: TimestampMs,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -146,6 +157,24 @@ impl Store {
                 updated_at      INTEGER NOT NULL,
                 PRIMARY KEY (account_id, asset)
             );
+
+            CREATE TABLE IF NOT EXISTS strategy_state (
+                strategy_id      TEXT PRIMARY KEY,
+                snapshot_json    TEXT NOT NULL,
+                updated_at       INTEGER NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS strategy_operations (
+                id               INTEGER PRIMARY KEY AUTOINCREMENT,
+                strategy_id      TEXT NOT NULL,
+                action           TEXT NOT NULL,
+                status           TEXT NOT NULL,
+                actor            TEXT NOT NULL,
+                detail           TEXT NOT NULL,
+                occurred_at      INTEGER NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_strategy_operations
+                ON strategy_operations(strategy_id, occurred_at DESC);
             "#,
         )
         .map_err(db_err)?;
@@ -179,7 +208,9 @@ impl Store {
                     o.id.as_str(),
                     o.account_id.as_str(),
                     o.instrument_id.as_str(),
-                    o.strategy_instance_id.as_ref().map(|s| s.as_str().to_string()),
+                    o.strategy_instance_id
+                        .as_ref()
+                        .map(|s| s.as_str().to_string()),
                     o.client_order_id.as_str(),
                     side_str(&o.side),
                     type_str(&o.order_type),
@@ -293,11 +324,7 @@ impl Store {
     }
 
     /// Recent mid-price points for the dashboard trend chart (oldest → newest).
-    pub fn price_series(
-        &self,
-        instrument_id: &str,
-        limit: u32,
-    ) -> Result<Vec<PricePoint>> {
+    pub fn price_series(&self, instrument_id: &str, limit: u32) -> Result<Vec<PricePoint>> {
         let conn = self.lock()?;
         // ASC window: take latest N by subquery then reverse to chronological.
         let mut stmt = conn
@@ -326,10 +353,15 @@ impl Store {
                 })
             })
             .map_err(db_err)?;
-        rows.collect::<std::result::Result<Vec<_>, _>>().map_err(db_err)
+        rows.collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(db_err)
     }
 
-    pub fn save_balances(&self, account_id: &str, balances: &[crate::domain::Balance]) -> Result<()> {
+    pub fn save_balances(
+        &self,
+        account_id: &str,
+        balances: &[crate::domain::Balance],
+    ) -> Result<()> {
         let conn = self.lock()?;
         let mut stmt = conn
             .prepare(
@@ -372,7 +404,90 @@ impl Store {
                 })
             })
             .map_err(db_err)?;
-        rows.collect::<std::result::Result<Vec<_>, _>>().map_err(db_err)
+        rows.collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(db_err)
+    }
+
+    pub fn save_strategy_snapshot(
+        &self,
+        strategy_id: &str,
+        snapshot_json: &str,
+        updated_at: TimestampMs,
+    ) -> Result<()> {
+        self.lock()?
+            .execute(
+                r#"INSERT INTO strategy_state (strategy_id, snapshot_json, updated_at)
+                   VALUES (?1, ?2, ?3)
+                   ON CONFLICT(strategy_id) DO UPDATE SET
+                     snapshot_json=excluded.snapshot_json,
+                     updated_at=excluded.updated_at"#,
+                params![strategy_id, snapshot_json, updated_at],
+            )
+            .map_err(db_err)?;
+        Ok(())
+    }
+
+    pub fn load_strategy_snapshot(&self, strategy_id: &str) -> Result<Option<String>> {
+        self.lock()?
+            .query_row(
+                "SELECT snapshot_json FROM strategy_state WHERE strategy_id = ?1",
+                params![strategy_id],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(db_err)
+    }
+
+    pub fn append_strategy_operation(
+        &self,
+        strategy_id: &str,
+        action: &str,
+        status: &str,
+        actor: &str,
+        detail: &str,
+        occurred_at: TimestampMs,
+    ) -> Result<i64> {
+        let conn = self.lock()?;
+        conn.execute(
+            r#"INSERT INTO strategy_operations
+               (strategy_id, action, status, actor, detail, occurred_at)
+               VALUES (?1, ?2, ?3, ?4, ?5, ?6)"#,
+            params![strategy_id, action, status, actor, detail, occurred_at],
+        )
+        .map_err(db_err)?;
+        Ok(conn.last_insert_rowid())
+    }
+
+    pub fn strategy_operations(
+        &self,
+        strategy_id: &str,
+        limit: u32,
+    ) -> Result<Vec<StrategyOperationRow>> {
+        let conn = self.lock()?;
+        let mut stmt = conn
+            .prepare(
+                r#"SELECT id, strategy_id, action, status, actor, detail, occurred_at
+                   FROM strategy_operations
+                   WHERE strategy_id = ?1
+                   ORDER BY occurred_at DESC, id DESC
+                   LIMIT ?2"#,
+            )
+            .map_err(db_err)?;
+        let rows = stmt
+            .query_map(params![strategy_id, limit as i64], |row| {
+                Ok(StrategyOperationRow {
+                    id: row.get(0)?,
+                    strategy_id: row.get(1)?,
+                    action: row.get(2)?,
+                    status: row.get(3)?,
+                    actor: row.get(4)?,
+                    detail: row.get(5)?,
+                    occurred_at: row.get(6)?,
+                })
+            })
+            .map_err(db_err)?;
+        rows.collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(db_err)
     }
 
     /// Active orders for restart recovery (scoped to one account).
@@ -403,7 +518,6 @@ impl Store {
         }
         Ok(out)
     }
-
 
     /// Active orders for restart recovery into OMS (full semantics from JSON).
     pub fn load_open_orders(&self) -> Result<Vec<crate::domain::Order>> {
@@ -457,7 +571,8 @@ impl Store {
                 })
             })
             .map_err(db_err)?;
-        rows.collect::<std::result::Result<Vec<_>, _>>().map_err(db_err)
+        rows.collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(db_err)
     }
 
     pub fn list_fills(&self, limit: u32) -> Result<Vec<FillRow>> {
@@ -485,7 +600,8 @@ impl Store {
                 })
             })
             .map_err(db_err)?;
-        rows.collect::<std::result::Result<Vec<_>, _>>().map_err(db_err)
+        rows.collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(db_err)
     }
 
     pub fn equity_series(&self, account_id: &str, limit: u32) -> Result<Vec<EquityPoint>> {
@@ -514,7 +630,8 @@ impl Store {
                 })
             })
             .map_err(db_err)?;
-        rows.collect::<std::result::Result<Vec<_>, _>>().map_err(db_err)
+        rows.collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(db_err)
     }
 
     pub fn overview(
@@ -636,7 +753,6 @@ fn db_err(e: rusqlite::Error) -> TuxError {
     TuxError::Storage(e.to_string())
 }
 
-
 /// Convenience used by status rendering.
 pub fn status_is_active(status: &OrderStatus) -> bool {
     status.is_active()
@@ -740,6 +856,28 @@ mod tests {
         assert_eq!(px.len(), 2);
         assert_eq!(px[0].mid, d("100"));
         assert_eq!(px[1].mid, d("101"));
+
+        store
+            .save_strategy_snapshot("s1", r#"{"status":"running"}"#, now)
+            .unwrap();
+        assert_eq!(
+            store.load_strategy_snapshot("s1").unwrap().as_deref(),
+            Some(r#"{"status":"running"}"#)
+        );
+        store
+            .append_strategy_operation(
+                "s1",
+                "update_config",
+                "succeeded",
+                "dashboard",
+                "revision 2",
+                now,
+            )
+            .unwrap();
+        let operations = store.strategy_operations("s1", 10).unwrap();
+        assert_eq!(operations.len(), 1);
+        assert_eq!(operations[0].action, "update_config");
+        assert_eq!(operations[0].actor, "dashboard");
 
         let ov = store
             .overview(

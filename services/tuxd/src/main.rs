@@ -3,9 +3,9 @@
 //! Default: Local Paper closed loop + SQLite persistence + Console dashboard.
 //! Optional: `binance` / `okx` venue features. No PostgreSQL/NATS/MinIO required.
 
-mod pipeline;
 mod dashboard_mod;
 mod live_feed;
+mod pipeline;
 mod runtime;
 
 #[cfg(feature = "control-api")]
@@ -18,7 +18,6 @@ use std::sync::Arc;
 use rust_decimal::Decimal;
 use tux_core::ensure_not_live;
 use tux_core::ids::{Environment, MarketContext, Product, Venue};
-use tux_core::portfolio::{PnLBook, Portfolio};
 use tux_core::sim::FillModel;
 use tux_core::store::Store;
 
@@ -52,14 +51,22 @@ fn main() {
     runtime.block_on(async move {
         let db_label = db_path.display().to_string();
         let rt = std::sync::Arc::new(runtime::RuntimeState::new(
-            tux_core::domain::Instrument::spot("SOL-USDT", Venue::LocalPaper, "SOL", "USDT", d("0.01"), d("0.001")),
+            tux_core::domain::Instrument::spot(
+                "SOL-USDT",
+                Venue::LocalPaper,
+                "SOL",
+                "USDT",
+                d("0.01"),
+                d("0.001"),
+            ),
             tux_core::ids::AccountId::from("paper_acc"),
             tux_core::ids::StrategyInstanceId::from("oneshot"),
             store.clone(),
             tux_core::sim::PaperEngine::new(fill_model.clone()),
             {
                 let mut r = tux_core::risk::RiskEngine::new_safe_default();
-                r.limits.instrument_whitelist = vec![tux_core::domain::InstrumentId::new("SOL-USDT")];
+                r.limits.instrument_whitelist =
+                    vec![tux_core::domain::InstrumentId::new("SOL-USDT")];
                 r.limits.max_order_notional = Some(d("5000"));
                 r.kill_switch.release();
                 r.set_feeds_connected(true);
@@ -69,22 +76,13 @@ fn main() {
 
         #[cfg(feature = "control-api")]
         let serve_handle = {
-            let account_id = tux_core::ids::AccountId::from("paper_acc");
-            let mut portfolio = Portfolio::new();
-            if let Ok(bals) = store.load_balances(account_id.as_str()) {
-                for b in bals {
-                    portfolio.seed_balance(b);
-                }
-            }
-            let state = control::AppState {
-                rt: rt.clone(),
-            };
+            let state = control::AppState { rt: rt.clone() };
             let want_serve = std::env::var("TUXD_SERVE").ok().as_deref() == Some("1")
                 || std::env::var("TUXD_HOLD").ok().as_deref() == Some("1");
             if want_serve {
                 let port = std::env::var("TUXD_PORT").unwrap_or_else(|_| "8080".into());
                 println!("Dashboard: http://127.0.0.1:{port}/");
-                live_feed::spawn_price_sampler(store.clone(), "SOLUSDT");
+                live_feed::spawn_price_sampler(rt.clone(), "SOLUSDT");
                 Some(tokio::spawn(async move {
                     if let Err(e) = serve(state).await {
                         eprintln!("control-api failed: {e}");
@@ -119,7 +117,9 @@ fn main() {
                 } else {
                     // one-shot: keep dashboard alive a moment
                     let port = std::env::var("TUXD_PORT").unwrap_or_else(|_| "8080".into());
-                    println!("Dashboard: http://127.0.0.1:{port}/  (use TUXD_HOLD=1 to keep running)");
+                    println!(
+                        "Dashboard: http://127.0.0.1:{port}/  (use TUXD_HOLD=1 to keep running)"
+                    );
                 }
             }
         }
@@ -131,7 +131,8 @@ fn main() {
 #[cfg(feature = "control-api")]
 async fn serve(state: control::AppState) -> anyhow::Result<()> {
     let port = std::env::var("TUXD_PORT").unwrap_or_else(|_| "8080".into());
-    let addr: std::net::SocketAddr = format!("0.0.0.0:{port}").parse()?;
+    let bind = std::env::var("TUXD_BIND").unwrap_or_else(|_| "127.0.0.1".into());
+    let addr: std::net::SocketAddr = format!("{bind}:{port}").parse()?;
     let app = control::router(state);
     let listener = tokio::net::TcpListener::bind(addr).await?;
     tracing::info!("tuxd console on http://127.0.0.1:{port}/");
@@ -142,18 +143,11 @@ async fn serve(state: control::AppState) -> anyhow::Result<()> {
 fn setup_tracing() {
     let _ = tracing_subscriber::fmt()
         .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "info".into()),
+            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
         )
         .try_init();
 }
 
-#[allow(dead_code)]
 fn d(s: &str) -> Decimal {
     Decimal::from_str(s).expect("decimal")
-}
-
-#[allow(dead_code)]
-fn _unused_pnl() -> PnLBook {
-    PnLBook::default()
 }

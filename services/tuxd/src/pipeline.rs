@@ -1,25 +1,25 @@
-//! Local Paper closed loop on a shared RuntimeState (same instance as control API).
+//! Local Paper loop using the same runtime as the dashboard and control API.
 
 use std::str::FromStr;
 
 use rust_decimal::Decimal;
-use tux_core::domain::*;
+use tux_core::domain::StrategyConfig;
 use tux_core::events::{BookTicker, MarketEvent};
-use tux_core::ids::*;
+use tux_core::ids::{now_ms, ConfigVersionId, Environment};
 use tux_core::market::BookTop;
 use tux_core::sim::FillModel;
 use tux_strategy::{OneShotBuyStrategy, StrategyContext, StrategyHost};
 
 use crate::runtime::SharedRuntime;
 
-fn d(s: &str) -> Decimal {
-    Decimal::from_str(s).expect("decimal")
+fn decimal(value: &str) -> Decimal {
+    Decimal::from_str(value).expect("decimal")
 }
 
-fn synth_mid(i: i64) -> Decimal {
-    let t = i as f64;
-    let mid = 100.0 + 1.6 * (t * 0.45).sin() + 0.5 * (t * 1.1).cos() + t * 0.04;
-    d(&format!("{:.2}", mid))
+fn synthetic_mid(index: i64) -> Decimal {
+    let step = index as f64;
+    let mid = 100.0 + 1.6 * (step * 0.45).sin() + 0.5 * (step * 1.1).cos() + step * 0.04;
+    decimal(&format!("{mid:.2}"))
 }
 
 pub struct DemoReport {
@@ -37,17 +37,17 @@ pub struct DemoReport {
 }
 
 impl std::fmt::Display for DemoReport {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "intents processed : {}", self.intents)?;
-        writeln!(f, "orders created    : {}", self.orders)?;
-        writeln!(f, "fills             : {}", self.fills)?;
-        writeln!(f, "restored orders   : {}", self.restored_orders)?;
-        writeln!(f, "quote balance     : {}", self.final_quote)?;
-        writeln!(f, "base balance      : {}", self.final_base)?;
-        writeln!(f, "net pnl (fees in) : {}", self.net_pnl)?;
-        writeln!(f, "equity (mtm)      : {}", self.equity)?;
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(formatter, "intents processed : {}", self.intents)?;
+        writeln!(formatter, "orders created    : {}", self.orders)?;
+        writeln!(formatter, "fills             : {}", self.fills)?;
+        writeln!(formatter, "restored orders   : {}", self.restored_orders)?;
+        writeln!(formatter, "quote balance     : {}", self.final_quote)?;
+        writeln!(formatter, "base balance      : {}", self.final_base)?;
+        writeln!(formatter, "net pnl (fees in) : {}", self.net_pnl)?;
+        writeln!(formatter, "equity (mtm)      : {}", self.equity)?;
         writeln!(
-            f,
+            formatter,
             "price feed        : {} ({}/{})",
             if self.live_ticks > 0 {
                 "Binance SOLUSDT"
@@ -57,299 +57,209 @@ impl std::fmt::Display for DemoReport {
             self.live_ticks,
             self.total_ticks
         )?;
-        writeln!(f, "sqlite db         : {}", self.db_path)
+        writeln!(formatter, "sqlite db         : {}", self.db_path)
     }
 }
 
-/// Run book ticks through market → strategy → risk → OMS → paper → portfolio
-/// **on the shared runtime** so the control API observes the same state.
-pub async fn run_paper_demo(rt: &SharedRuntime, fill_model: FillModel, db_path: &str) -> anyhow::Result<DemoReport> {
-    let _ = fill_model; // paper engine already built into runtime
-    let account_id = rt.account_id.clone();
-    let inst_id = rt.instrument.id.clone();
-    let instrument = rt.instrument.clone();
-    let strategy_id = rt.strategy_instance_id.clone();
-
-    let restored_orders = rt.restore_from_store()?;
-
+/// Run a short bootstrap loop. When the dashboard stays open, the background
+/// sampler continues updating market state and matching resting paper orders.
+pub async fn run_paper_demo(
+    runtime: &SharedRuntime,
+    _fill_model: FillModel,
+    db_path: &str,
+) -> anyhow::Result<DemoReport> {
+    let account_id = runtime.account_id.clone();
+    let instrument_id = runtime.instrument.id.clone();
+    let strategy_id = runtime.strategy_instance_id.clone();
+    let restored_orders = runtime.restore_from_store()?;
+    let initial_strategy = runtime.strategy_snapshot();
+    let mut applied_revision = initial_strategy.revision;
+    let mut applied_config = StrategyConfig {
+        version: ConfigVersionId::from(format!("cfg-{}", applied_revision)),
+        params: serde_json::to_value(&initial_strategy.parameters)?,
+        effective_event_seq: None,
+        applied_at: Some(now_ms()),
+    };
     let mut host = StrategyHost::new(
         StrategyContext {
-            instance_id: strategy_id.clone(),
+            instance_id: strategy_id,
             account_id: account_id.clone(),
             environment: Environment::LocalPaper,
-            config: StrategyConfig {
-                version: ConfigVersionId::from("cfg1"),
-                params: serde_json::json!({}),
-                effective_event_seq: None,
-                applied_at: None,
-            },
+            config: applied_config.clone(),
         },
-        Box::new(OneShotBuyStrategy::new(d("0.5"))),
+        Box::new(OneShotBuyStrategy::new(
+            initial_strategy.parameters.quantity,
+        )),
     );
     host.start().await?;
+    let _ = runtime.record_strategy_operation(
+        "runtime_start",
+        "succeeded",
+        "system",
+        "strategy runtime started",
+    );
 
     let mut intents_seen = 0usize;
     let mut orders_made = 0usize;
     let mut fill_count = 0usize;
-    let mut _sub = rt.bus.subscribe();
-
-    rt.store.clear_market_ticks(inst_id.as_str())?;
-    let n_ticks = 16i64;
+    let mut _subscriber = runtime.bus.subscribe();
+    let total_ticks = 16i64;
     let mut live_ticks = 0usize;
-    let mut warmup: Option<crate::live_feed::LiveBook> = None;
-    for _ in 0..6 {
+    let mut warmup = None;
+    for _ in 0..3 {
         match crate::live_feed::fetch_book("SOLUSDT").await {
-            Ok(b) => {
-                warmup = Some(b);
+            Ok(book) => {
+                warmup = Some(book);
                 break;
             }
-            Err(e) => {
-                tracing::warn!(error = %e, "live warmup retry");
-                tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+            Err(error) => {
+                tracing::warn!(error = %error, "live warmup retry");
+                tokio::time::sleep(std::time::Duration::from_millis(200)).await;
             }
         }
     }
-    let live_mode = warmup.is_some();
+    let serve_mode = std::env::var("TUXD_SERVE").as_deref() == Ok("1");
+    let synthetic_mode = warmup.is_none() && !serve_mode;
 
-    for i in 0..n_ticks {
-        let (bid, ask, bid_qty, ask_qty) = if live_mode {
-            match crate::live_feed::fetch_book("SOLUSDT").await {
-                Ok(b) => {
-                    live_ticks += 1;
-                    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
-                    (b.bid, b.ask, b.bid_qty, b.ask_qty)
-                }
-                Err(_) => continue,
-            }
+    for index in 0..total_ticks {
+        let live_book = if synthetic_mode {
+            None
+        } else if warmup.is_some() {
+            warmup.take()
         } else {
-            let mid = synth_mid(i);
-            let half = d("0.05");
-            (mid - half, mid + half, d("2"), d("2"))
+            match crate::live_feed::fetch_book("SOLUSDT").await {
+                Ok(book) => Some(book),
+                Err(error) => {
+                    tracing::warn!(error = %error, "live tick unavailable");
+                    None
+                }
+            }
         };
-        let top = BookTicker {
-            instrument_id: inst_id.clone(),
+        let (bid, ask, bid_quantity, ask_quantity) = if let Some(book) = live_book {
+            live_ticks += 1;
+            tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+            (book.bid, book.ask, book.bid_qty, book.ask_qty)
+        } else if synthetic_mode {
+            let mid = synthetic_mid(index);
+            let half = decimal("0.05");
+            (mid - half, mid + half, decimal("2"), decimal("2"))
+        } else {
+            runtime.persist_equity()?;
+            tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+            continue;
+        };
+        let tick = BookTicker {
+            instrument_id: instrument_id.clone(),
             bid_price: bid,
-            bid_qty,
+            bid_qty: bid_quantity,
             ask_price: ask,
-            ask_qty,
+            ask_qty: ask_quantity,
             occurred_at: now_ms(),
         };
-        {
-            let mut market = rt.market.lock().unwrap();
-            market.on_book_ticker(&top);
-        }
+        runtime.market.lock().unwrap().on_book_ticker(&tick);
         let book_top = BookTop {
-            bid_price: top.bid_price,
-            bid_qty: top.bid_qty,
-            ask_price: top.ask_price,
-            ask_qty: top.ask_qty,
-            at: top.occurred_at,
+            bid_price: tick.bid_price,
+            bid_qty: tick.bid_qty,
+            ask_price: tick.ask_price,
+            ask_qty: tick.ask_qty,
+            at: tick.occurred_at,
         };
-        rt.paper.on_book_top(&inst_id, book_top.clone());
-        // P1: every tick drains paper fills into portfolio/OMS/risk/store.
-        fill_count += rt.drain_fills()?;
-
+        runtime.paper.on_book_top(&instrument_id, book_top.clone());
+        fill_count += runtime.drain_fills()?;
         if let Some(mid) = book_top.mid() {
-            rt.store.save_market_tick(
-                inst_id.as_str(),
+            runtime.store.save_market_tick(
+                instrument_id.as_str(),
                 book_top.bid_price,
                 book_top.ask_price,
                 mid,
                 book_top.at,
             )?;
         }
-        rt.bus
+        runtime
+            .bus
             .publish_ignore_lag(tux_core::events::BusEvent::Market(MarketEvent::BookTicker(
-                top.clone(),
+                tick.clone(),
             )));
 
-        let intents = host.on_market(&MarketEvent::BookTicker(top)).await?;
-        for intent in intents {
-            intents_seen += 1;
-            if rt.validate_scope(&intent).is_err() {
-                tracing::warn!(?intent, "intent out of scope, rejected");
-                continue;
-            }
-            let (market_ref, age) = {
-                let market = rt.market.lock().unwrap();
-                (
-                    market.reference_price(&inst_id),
-                    market.age_ms(&inst_id),
-                )
+        let strategy = runtime.strategy_snapshot();
+        if strategy.revision != applied_revision {
+            let next = StrategyConfig {
+                version: ConfigVersionId::from(format!("cfg-{}", strategy.revision)),
+                params: serde_json::to_value(&strategy.parameters)?,
+                effective_event_seq: None,
+                applied_at: Some(now_ms()),
             };
-            let decision = {
-                let mut risk = rt.risk.lock().unwrap();
-                let pf = rt.portfolio.lock().unwrap();
-                let mut marks = std::collections::HashMap::new();
-                marks.insert("USDT".to_string(), Decimal::ONE);
-                if let Some(px) = market_ref {
-                    marks.insert("SOL".to_string(), px);
-                }
-                let eq = pf.equity_mtm(&account_id, "USDT", &marks);
-                let daily = pf.pnl_book(&account_id).map(|p| p.net_pnl()).unwrap_or_default();
-                risk.update_pnl_facts(eq, daily);
-                risk.check_intent(&intent, &instrument, market_ref, age, &pf)
-            };
-            if !decision.is_approved() {
-                tracing::warn!(?decision, "intent rejected");
-                continue;
-            }
-            let order = {
-                let mut oms = rt.oms.lock().unwrap();
-                oms.create_from_intent(&intent)?
-            };
-            orders_made += 1;
-            // Never hold std::Mutex across await.
-            let mut local = order.clone();
-            tux_core::oms::OrderStateMachine::transition(
-                &mut local,
-                tux_core::domain::OrderStatus::Submitted,
-            )?;
-            let placed = rt.paper.place_order(&local).await?;
-            {
-                let mut oms = rt.oms.lock().unwrap();
-                oms.upsert(placed.clone());
-            }
-            rt.store.save_order(&placed)?;
-            fill_count += rt.drain_fills()?;
-            // Rejected/cancelled with no fills must free risk budget.
-            if placed.status.is_terminal() {
-                if let Ok(cur) = rt.paper.query_order_blocking(&placed.id) {
-                    if cur.filled_quantity.is_zero() {
-                        if let Some(sid) = &cur.strategy_instance_id {
-                            let notional = cur.notional(market_ref).unwrap_or_default();
-                            rt.risk
-                                .lock()
-                                .unwrap()
-                                .note_order_terminal(sid, &cur.account_id, notional);
-                        }
-                    }
-                }
-            }
-            // Rejected/cancelled with no fills must free risk budget.
-            if placed.status.is_terminal() {
-                if let Ok(cur) = rt.paper.query_order_blocking(&placed.id) {
-                    if cur.filled_quantity.is_zero() {
-                        if let Some(sid) = &cur.strategy_instance_id {
-                            let notional = cur.notional(market_ref).unwrap_or_default();
-                            rt.risk
-                                .lock()
-                                .unwrap()
-                                .note_order_terminal(sid, &cur.account_id, notional);
-                        }
-                    }
-                }
-            }
-            // Rejected/cancelled with no fills must free risk budget.
-            if placed.status.is_terminal() {
-                if let Ok(cur) = rt.paper.query_order_blocking(&placed.id) {
-                    if cur.filled_quantity.is_zero() {
-                        if let Some(sid) = &cur.strategy_instance_id {
-                            let notional = cur.notional(market_ref).unwrap_or_default();
-                            rt.risk
-                                .lock()
-                                .unwrap()
-                                .note_order_terminal(sid, &cur.account_id, notional);
-                        }
-                    }
-                }
-            }
-            // Rejected/cancelled with no fills must free risk budget.
-            if placed.status.is_terminal() {
-                if let Ok(cur) = rt.paper.query_order_blocking(&placed.id) {
-                    if cur.filled_quantity.is_zero() {
-                        if let Some(sid) = &cur.strategy_instance_id {
-                            let notional = cur.notional(market_ref).unwrap_or_default();
-                            rt.risk
-                                .lock()
-                                .unwrap()
-                                .note_order_terminal(sid, &cur.account_id, notional);
-                        }
-                    }
-                }
-            }
-            // Rejected/cancelled with no fills must free risk budget.
-            if placed.status.is_terminal() {
-                if let Ok(cur) = rt.paper.query_order_blocking(&placed.id) {
-                    if cur.filled_quantity.is_zero() {
-                        if let Some(sid) = &cur.strategy_instance_id {
-                            let notional = cur.notional(market_ref).unwrap_or_default();
-                            rt.risk
-                                .lock()
-                                .unwrap()
-                                .note_order_terminal(sid, &cur.account_id, notional);
-                        }
-                    }
-                }
-            }
-            // Rejected/cancelled with no fills must free risk budget.
-            if placed.status.is_terminal() {
-                if let Ok(cur) = rt.paper.query_order_blocking(&placed.id) {
-                    if cur.filled_quantity.is_zero() {
-                        if let Some(sid) = &cur.strategy_instance_id {
-                            let notional = cur.notional(market_ref).unwrap_or_default();
-                            rt.risk
-                                .lock()
-                                .unwrap()
-                                .note_order_terminal(sid, &cur.account_id, notional);
-                        }
-                    }
-                }
-            }
-            // Rejected/cancelled with no fills must free risk budget.
-            if placed.status.is_terminal() {
-                if let Ok(cur) = rt.paper.query_order_blocking(&placed.id) {
-                    if cur.filled_quantity.is_zero() {
-                        if let Some(sid) = &cur.strategy_instance_id {
-                            let notional = cur.notional(market_ref).unwrap_or_default();
-                            rt.risk
-                                .lock()
-                                .unwrap()
-                                .note_order_terminal(sid, &cur.account_id, notional);
-                        }
-                    }
-                }
-            }
-            tracing::info!(
-                order = %placed.id,
-                status = %placed.status,
-                filled = %placed.filled_quantity,
-                "order executed"
-            );
+            host.update_config(&applied_config, &next).await?;
+            applied_config = next;
+            applied_revision = strategy.revision;
+        }
+        if !strategy.status.can_execute() {
+            runtime.persist_equity()?;
+            continue;
         }
 
-        rt.persist_equity()?;
+        let intents = host.on_market(&MarketEvent::BookTicker(tick)).await?;
+        for intent in intents {
+            intents_seen += 1;
+            runtime.note_strategy_signal()?;
+            match runtime.execute_intent(intent).await {
+                Ok(order) => {
+                    orders_made += 1;
+                    runtime.note_strategy_order(&order)?;
+                    let _ = runtime.record_strategy_operation(
+                        "automatic_signal",
+                        "succeeded",
+                        "strategy",
+                        &format!("created order {} ({})", order.id, order.status),
+                    );
+                    tracing::info!(
+                        order = %order.id,
+                        status = %order.status,
+                        filled = %order.filled_quantity,
+                        "strategy order executed"
+                    );
+                }
+                Err(error) => {
+                    let _ = runtime.record_strategy_operation(
+                        "automatic_signal",
+                        "failed",
+                        "strategy",
+                        &error.to_string(),
+                    );
+                    tracing::warn!(error = %error, "strategy intent rejected");
+                }
+            }
+        }
+        runtime.persist_equity()?;
     }
 
-    let quote = {
-        let pf = rt.portfolio.lock().unwrap();
-        pf.balance(&account_id, "USDT").map(|b| b.free).unwrap_or_default()
+    let (quote, base, net_pnl) = {
+        let portfolio = runtime.portfolio.lock().unwrap();
+        let quote = portfolio
+            .balance(&account_id, &runtime.quote_asset)
+            .map(|balance| balance.free)
+            .unwrap_or_default();
+        let base = portfolio
+            .balance(&account_id, &runtime.base_asset)
+            .map(|balance| balance.free)
+            .unwrap_or_default();
+        let net_pnl = portfolio
+            .pnl_book(&account_id)
+            .map(|book| book.net_pnl())
+            .unwrap_or_default();
+        (quote, base, net_pnl)
     };
-    let base = {
-        let pf = rt.portfolio.lock().unwrap();
-        pf.balance(&account_id, "SOL").map(|b| b.free).unwrap_or_default()
-    };
-    let net = {
-        let pf = rt.portfolio.lock().unwrap();
-        pf.pnl_book(&account_id).map(|p| p.net_pnl()).unwrap_or_default()
-    };
-    let equity = rt.equity_mtm();
-
-    anyhow::ensure!(intents_seen >= 1, "strategy produced no intents");
-    anyhow::ensure!(orders_made >= 1, "OMS created no orders");
-    anyhow::ensure!(base > Decimal::ZERO, "expected base fill in portfolio");
-
     Ok(DemoReport {
         intents: intents_seen,
         orders: orders_made,
         fills: fill_count,
         final_quote: quote,
         final_base: base,
-        net_pnl: net,
-        equity,
+        net_pnl,
+        equity: runtime.equity_mtm(),
         db_path: db_path.to_string(),
         live_ticks,
-        total_ticks: n_ticks as usize,
+        total_ticks: total_ticks as usize,
         restored_orders,
     })
 }

@@ -20,10 +20,14 @@ pub struct Reconciler;
 impl Reconciler {
     pub fn diff_orders(local: &[Order], venue: &[Order]) -> Vec<String> {
         let mut out = Vec::new();
-        let local_ids: std::collections::HashSet<_> =
-            local.iter().map(|o| o.client_order_id.as_str().to_string()).collect();
-        let venue_ids: std::collections::HashSet<_> =
-            venue.iter().map(|o| o.client_order_id.as_str().to_string()).collect();
+        let local_ids: std::collections::HashSet<_> = local
+            .iter()
+            .map(|o| o.client_order_id.as_str().to_string())
+            .collect();
+        let venue_ids: std::collections::HashSet<_> = venue
+            .iter()
+            .map(|o| o.client_order_id.as_str().to_string())
+            .collect();
         for id in venue_ids.difference(&local_ids) {
             out.push(format!("order only on venue: {id}"));
         }
@@ -35,7 +39,8 @@ impl Reconciler {
 
     pub fn diff_balances(local: &[Balance], venue: &[Balance]) -> Vec<String> {
         use std::collections::HashMap;
-        let mut map: HashMap<String, (rust_decimal::Decimal, rust_decimal::Decimal)> = HashMap::new();
+        let mut map: HashMap<String, (rust_decimal::Decimal, rust_decimal::Decimal)> =
+            HashMap::new();
         for b in local {
             map.entry(b.asset.clone()).or_default().0 = b.total();
         }
@@ -50,12 +55,17 @@ impl Reconciler {
 
     pub fn diff_positions(local: &[Position], venue: &[Position]) -> Vec<String> {
         use std::collections::HashMap;
-        let mut map: HashMap<String, (rust_decimal::Decimal, rust_decimal::Decimal)> = HashMap::new();
+        let mut map: HashMap<String, (rust_decimal::Decimal, rust_decimal::Decimal)> =
+            HashMap::new();
         for p in local {
-            map.entry(p.instrument_id.as_str().to_string()).or_default().0 = p.size;
+            map.entry(p.instrument_id.as_str().to_string())
+                .or_default()
+                .0 = p.size;
         }
         for p in venue {
-            map.entry(p.instrument_id.as_str().to_string()).or_default().1 = p.size;
+            map.entry(p.instrument_id.as_str().to_string())
+                .or_default()
+                .1 = p.size;
         }
         map.into_iter()
             .filter(|(_, (l, v))| l != v)
