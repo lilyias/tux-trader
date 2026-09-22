@@ -1,0 +1,40 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/tux-core",
+    "crates/tux-exchange",
+    "crates/tux-strategy",
+    "services/tuxd",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.80"
+license = "Apache-2.0"
+
+[workspace.dependencies]
+tux-core = { path = "crates/tux-core" }
+tux-exchange = { path = "crates/tux-exchange" }
+tux-strategy = { path = "crates/tux-strategy" }
+
+anyhow = "1"
+futures = "0.3"
+async-trait = "0.1"
+axum = { version = "0.8", default-features = false, features = ["json", "tokio", "http1", "query"] }
+chrono = { version = "0.4", features = ["serde"] }
+rust_decimal = { version = "1", features = ["serde-with-str"] }
+rusqlite = { version = "0.32", features = ["bundled"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+# slim: no "full"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1

@@ -1,0 +1,31 @@
+/target
+**/*.rs.bk
+Cargo.lock.bak
+
+# secrets / local config
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+config/local.toml
+config/secrets.toml
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# logs & runtime data
+/logs
+/data
+*.log
+
+# frontend (tux-console)
+node_modules/
+dist/
+.next/

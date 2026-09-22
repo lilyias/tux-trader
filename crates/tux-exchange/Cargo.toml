@@ -1,0 +1,17 @@
+[package]
+name = "tux-exchange"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Venue adapters (feature-gated). Local Paper MVP needs none of them."
+
+[features]
+default = []
+binance = []
+okx = []
+
+[dependencies]
+async-trait.workspace = true
+rust_decimal.workspace = true
+serde.workspace = true
+tux-core.workspace = true

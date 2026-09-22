@@ -1,0 +1,13 @@
+[package]
+name = "tux-strategy"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Strategy SDK and host (intents only; no API keys)"
+
+[dependencies]
+async-trait.workspace = true
+rust_decimal.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tux-core.workspace = true

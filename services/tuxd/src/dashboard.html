@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>TUX Console — Local Paper</title>
+<style>
+  :root {
+    --bg: #0b0f14;
+    --panel: #121820;
+    --panel-2: #18212c;
+    --ink: #e6edf3;
+    --muted: #8b9bb4;
+    --line: #243041;
+    --accent: #2dd4a8;
+    --danger: #f07178;
+    --warn: #e6c07b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.45;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--line);
+    background: var(--panel);
+  }
+  header h1 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+  }
+  header h1 span { color: var(--accent); }
+  .pill {
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    color: var(--muted);
+  }
+  .pill.ok { color: var(--accent); border-color: #1d5c4a; }
+  .pill.bad { color: var(--danger); border-color: #6b3038; }
+  main {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 18px 20px 40px;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 12px 14px;
+  }
+  .card .label {
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .card .value {
+    font-size: 22px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    margin-top: 4px;
+  }
+  .card .value.neg { color: var(--danger); }
+  .card .value.pos { color: var(--accent); }
+  .row {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+  @media (max-width: 860px) {
+    .grid { grid-template-columns: repeat(2, 1fr); }
+    .row { grid-template-columns: 1fr; }
+  }
+  h2 {
+    margin: 0 0 10px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+  }
+  th, td {
+    text-align: left;
+    padding: 7px 8px;
+    border-bottom: 1px solid var(--line);
+  }
+  th { color: var(--muted); font-weight: 500; }
+  tr:last-child td { border-bottom: none; }
+  .mono { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: 11px; color: var(--muted); }
+  .buy { color: var(--accent); }
+  .sell { color: var(--danger); }
+  #chart-wrap, #price-wrap { height: 180px; position: relative; }
+  #price-wrap { height: 160px; }
+  svg { width: 100%; height: 100%; display: block; }
+  .tip {
+    position: absolute;
+    pointer-events: none;
+    display: none;
+    background: #1a2330;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 6px 8px;
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+    transform: translate(-50%, -115%);
+    white-space: nowrap;
+    z-index: 5;
+    box-shadow: 0 4px 14px rgba(0,0,0,.35);
+  }
+  .tip .t { color: var(--muted); }
+  .tip .p { color: var(--accent); font-weight: 600; }
+  .empty { color: var(--muted); padding: 16px; text-align: center; font-size: 12px; }
+  .muted { color: var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1><span>TUX</span> Console · Local Paper</h1>
+  <div>
+    <span id="kill" class="pill">risk</span>
+    <span id="status" class="pill">loading</span>
+  </div>
+</header>
+<main>
+  <section class="grid" id="kpis">
+    <div class="card"><div class="label">SOL-USDT Mid</div><div class="value" id="last_px">—</div></div>
+    <div class="card"><div class="label">Range Δ</div><div class="value" id="px_chg">—</div></div>
+    <div class="card"><div class="label">Equity</div><div class="value" id="equity">—</div></div>
+    <div class="card"><div class="label">Net PnL</div><div class="value" id="net_pnl">—</div></div>
+  </section>
+
+  <div class="card" style="margin-bottom:14px">
+    <h2>SOL-USDT price trend <span class="muted" id="px-meta"></span></h2>
+    <div id="price-wrap">
+      <svg id="price-chart" viewBox="0 0 640 160" preserveAspectRatio="none" aria-label="price trend"></svg>
+      <div class="tip" id="price-tip"></div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="card">
+      <h2>Equity curve</h2>
+      <div id="chart-wrap">
+        <svg id="chart" viewBox="0 0 640 180" preserveAspectRatio="none" aria-label="equity curve"></svg>
+        <div class="tip" id="equity-tip"></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>PnL breakdown</h2>
+      <table>
+        <tbody id="pnl-breakdown">
+          <tr><td class="muted">gross realized</td><td id="gross_realized_pnl">—</td></tr>
+          <tr><td class="muted">unrealized</td><td id="unrealized_pnl">—</td></tr>
+          <tr><td class="muted">trading fees</td><td id="trading_fees">—</td></tr>
+          <tr><td class="muted">funding</td><td id="funding_fees">—</td></tr>
+          <tr><td class="muted">borrow interest</td><td id="borrow_interest">—</td></tr>
+          <tr><td class="muted">net pnl</td><td id="net_pnl2">—</td></tr>
+          <tr><td class="muted">fills / open</td><td id="counts2">—</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="card">
+      <h2>Recent fills</h2>
+      <table>
+        <thead>
+          <tr><th>Time</th><th>Side</th><th>Price</th><th>Qty</th><th>Fee</th></tr>
+        </thead>
+        <tbody id="fills"></tbody>
+      </table>
+    </div>
+    <div class="card">
+      <h2>Recent orders</h2>
+      <table>
+        <thead>
+          <tr><th>Time</th><th>Side</th><th>Status</th><th>Price</th><th>Filled</th></tr>
+        </thead>
+        <tbody id="orders"></tbody>
+      </table>
+    </div>
+  </div>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+
+function fmtNum(n) {
+  const x = Number(n);
+  if (!isFinite(x)) return "—";
+  return x.toLocaleString("en-US", { maximumFractionDigits: 6 });
+}
+function fmtTime(ms) {
+  if (!ms) return "—";
+  const d = new Date(Number(ms));
+  return d.toISOString().slice(11, 19);
+}
+function setVal(id, v, signed) {
+  const el = $(id);
+  el.textContent = fmtNum(v);
+  el.classList.remove("pos", "neg");
+  const x = Number(v);
+  if (signed && isFinite(x)) {
+    if (x > 0) el.classList.add("pos");
+    if (x < 0) el.classList.add("neg");
+  }
+}
+
+function fmtTimeFull(ms) {
+  if (!ms) return "—";
+  const d = new Date(Number(ms));
+  return d.toISOString().replace("T", " ").slice(0, 23) + "Z";
+}
+
+function drawSeries(svgId, tipId, rows, field, color, emptyMsg, fmtY) {
+  const svg = $(svgId);
+  const tip = tipId ? $(tipId) : null;
+  svg.innerHTML = "";
+  const W = 640, H = svgId === "price-chart" ? 160 : 180, pad = 8;
+  if (!rows || rows.length === 0) {
+    svg.innerHTML = `<text x="320" y="${H / 2}" fill="#8b9bb4" text-anchor="middle" font-size="12">${emptyMsg}</text>`;
+    return;
+  }
+  const ys = rows.map(p => Number(p[field]));
+  let min = Math.min(...ys), max = Math.max(...ys);
+  if (min === max) { min -= 1; max += 1; }
+  const n = ys.length;
+  const xAt = (i) => pad + (i / Math.max(n - 1, 1)) * (W - pad * 2);
+  const yAt = (y) => H - pad - ((y - min) / (max - min)) * (H - pad * 2);
+  let d = "";
+  ys.forEach((y, i) => {
+    d += (i === 0 ? "M" : "L") + xAt(i).toFixed(1) + "," + yAt(y).toFixed(1) + " ";
+  });
+  const area = d + `L${xAt(n - 1).toFixed(1)},${H - pad} L${xAt(0).toFixed(1)},${H - pad} Z`;
+  const gid = "g-" + svgId;
+  svg.innerHTML = `
+    <defs>
+      <linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="${color}" stop-opacity="0.28"/>
+        <stop offset="100%" stop-color="${color}" stop-opacity="0"/>
+      </linearGradient>
+    </defs>
+    <path d="${area}" fill="url(#${gid})" />
+    <path d="${d}" fill="none" stroke="${color}" stroke-width="1.5" />
+    <line id="${svgId}-cursor" x1="0" y1="${pad}" x2="0" y2="${H - pad}" stroke="${color}" stroke-opacity="0.4" stroke-width="1" style="display:none" />
+    <circle id="${svgId}-dot" r="3.5" fill="${color}" style="display:none" />
+    <rect x="0" y="0" width="${W}" height="${H}" fill="transparent" />
+  `;
+
+  if (!tip) return;
+  const wrap = svg.parentElement;
+  const cursor = $(svgId + "-cursor");
+  const dot = $(svgId + "-dot");
+  wrap.onmousemove = (e) => {
+    const rect = svg.getBoundingClientRect();
+    const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const i = Math.max(0, Math.min(n - 1, Math.round(ratio * (n - 1))));
+    const x = xAt(i), y = yAt(ys[i]);
+    if (cursor) {
+      cursor.style.display = "";
+      cursor.setAttribute("x1", x);
+      cursor.setAttribute("x2", x);
+    }
+    if (dot) {
+      dot.style.display = "";
+      dot.setAttribute("cx", x);
+      dot.setAttribute("cy", y);
+    }
+    const row = rows[i];
+    tip.innerHTML = `<div class="t">${fmtTimeFull(row.ts)}</div><div class="p">${fmtY(row[field])}</div>`;
+    tip.style.display = "block";
+    const wr = wrap.getBoundingClientRect();
+    tip.style.left = Math.max(50, Math.min(wr.width - 50, e.clientX - wr.left)) + "px";
+    tip.style.top = Math.max(30, (y / H) * wr.height) + "px";
+  };
+  wrap.onmouseleave = () => {
+    tip.style.display = "none";
+    if (cursor) cursor.style.display = "none";
+    if (dot) dot.style.display = "none";
+  };
+}
+
+function drawChart(points) {
+  drawSeries("chart", "equity-tip", points, "equity", "#2dd4a8", "no equity points yet",
+    (v) => "equity " + Number(v).toFixed(4));
+}
+
+function drawPrice(points) {
+  drawSeries("price-chart", "price-tip", points, "mid", "#6ea8fe", "no price ticks yet",
+    (v) => Number(v).toLocaleString("en-US", { maximumFractionDigits: 4 }) + " USDT");
+  const ys = (points || []).map(p => Number(p.mid));
+  if (!ys.length) {
+    $("last_px").textContent = "—";
+    $("px_chg").textContent = "—";
+    $("px_chg").classList.remove("pos", "neg");
+    $("px-meta").textContent = "";
+    return;
+  }
+  const last = ys[ys.length - 1];
+  const first = ys[0];
+  const chg = first !== 0 ? ((last - first) / first) * 100 : 0;
+  $("last_px").textContent = last.toLocaleString("en-US", { maximumFractionDigits: 4 });
+  $("px_chg").textContent = (chg >= 0 ? "+" : "") + chg.toFixed(2) + "%";
+  $("px_chg").classList.remove("pos", "neg");
+  $("px_chg").classList.add(chg >= 0 ? "pos" : "neg");
+  $("px-meta").textContent =
+    `· ${ys.length} ticks · ${fmtNum(Math.min(...ys))} – ${fmtNum(Math.max(...ys))} · Binance SOLUSDT live`;
+}
+
+async function load() {
+  try {
+    const [ov, fills, orders, equity, balances, prices] = await Promise.all([
+      fetch("/api/overview").then(r => r.json()),
+      fetch("/api/fills?limit=12").then(r => r.json()),
+      fetch("/api/orders?limit=12").then(r => r.json()),
+      fetch("/api/equity?limit=200").then(r => r.json()),
+      fetch("/api/balances").then(r => r.json()),
+      fetch("/api/prices?limit=120").then(r => r.json()),
+    ]);
+
+    setVal("equity", ov.equity);
+    setVal("net_pnl", ov.net_pnl, true);
+    setVal("net_pnl2", ov.net_pnl, true);
+    $("counts2").textContent = `${ov.fills} / ${ov.open_orders}`;
+    setVal("gross_realized_pnl", ov.gross_realized_pnl, true);
+    setVal("unrealized_pnl", ov.unrealized_pnl, true);
+    setVal("trading_fees", ov.trading_fees);
+    setVal("funding_fees", ov.funding_fees, true);
+    setVal("borrow_interest", ov.borrow_interest);
+    setVal("net_pnl2", ov.net_pnl, true);
+
+    const kill = $("kill");
+    if (ov.kill_switch) {
+      kill.textContent = "kill switch ON";
+      kill.className = "pill bad";
+    } else {
+      kill.textContent = "risk active";
+      kill.className = "pill ok";
+    }
+
+    drawPrice(prices);
+    drawChart(equity);
+
+    const fillsBody = $("fills");
+    fillsBody.innerHTML = fills.length === 0
+      ? '<tr><td colspan="5" class="empty">no fills</td></tr>'
+      : fills.map(f => `
+        <tr>
+          <td class="mono">${fmtTime(f.occurred_at)}</td>
+          <td class="${f.side.includes("Buy") || f.side === "buy" ? "buy" : "sell"}">${String(f.side).replace(/[{}\"]/g, "")}</td>
+          <td>${fmtNum(f.price)}</td>
+          <td>${fmtNum(f.quantity)}</td>
+          <td>${fmtNum(f.fee_amount)}</td>
+        </tr>`).join("");
+
+    const ordersBody = $("orders");
+    ordersBody.innerHTML = orders.length === 0
+      ? '<tr><td colspan="5" class="empty">no orders</td></tr>'
+      : orders.map(o => `
+        <tr>
+          <td class="mono">${fmtTime(o.created_at)}</td>
+          <td class="${String(o.side).includes("Buy") || o.side === "buy" ? "buy" : "sell"}">${String(o.side).replace(/[{}\"]/g, "")}</td>
+          <td>${o.status}</td>
+          <td>${fmtNum(o.price)}</td>
+          <td>${fmtNum(o.filled_quantity)}</td>
+        </tr>`).join("");
+
+    // balances strip
+    if (balances && balances.length) {
+      const btxt = balances.map(b => `${b.asset}=${fmtNum(b.free)}`).join("  ");
+      $("status").textContent = btxt;
+      $("status").className = "pill ok";
+    } else {
+      $("status").textContent = "ready";
+      $("status").className = "pill ok";
+    }
+  } catch (e) {
+    $("status").textContent = "error";
+    $("status").className = "pill bad";
+    console.error(e);
+  }
+}
+
+load();
+setInterval(load, 4000);
+</script>
+</body>
+</html>

@@ -1,0 +1,34 @@
+[package]
+name = "tuxd"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "TUX daemon: single process — paper loop + optional control API"
+
+[[bin]]
+name = "tuxd"
+path = "src/main.rs"
+
+[features]
+default = ["control-api"]
+control-api = ["dep:axum", "dep:serde", "tokio/net"]
+binance = ["tux-exchange/binance"]
+okx = ["tux-exchange/okx"]
+
+[dependencies]
+tux-core.workspace = true
+tux-strategy.workspace = true
+tux-exchange.workspace = true
+rust_decimal.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+tokio.workspace = true
+anyhow.workspace = true
+futures.workspace = true
+reqwest.workspace = true
+serde_json.workspace = true
+serde = { workspace = true, optional = true }
+axum = { workspace = true, optional = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "sync", "time"] }
