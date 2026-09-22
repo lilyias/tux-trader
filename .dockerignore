@@ -1,0 +1,14 @@
+.git
+.github
+.idea
+.vscode
+target
+data
+logs
+.env
+.env.*
+*.log
+*.pem
+*.key
+**/*.rs.bk
+Cargo.lock.bak

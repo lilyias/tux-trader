@@ -34,6 +34,19 @@ TUX Quant 从零设计，目标是统一支持 Binance 与 OKX、现货与合约
 | Exchange Demo | 交易所模拟环境 | 交易所撮合 | API、订单和账户链路验证 |
 | Live | 实时行情 | 实盘撮合 | 正式交易 |
 
+## Docker 镜像
+
+推送到 `main` 或 `v*` 标签时，GitHub Actions 会构建 `tuxd` 镜像并发布到
+`ghcr.io/lilyias/tux-trader`。Pull Request 只执行镜像构建检查，不会推送镜像。
+
+```bash
+docker pull ghcr.io/lilyias/tux-trader:latest
+docker run --rm -p 8080:8080 -v tux-data:/data ghcr.io/lilyias/tux-trader:latest
+```
+
+容器默认运行 Local Paper 模式，Dashboard 地址为 `http://127.0.0.1:8080/`，
+SQLite 数据保存在 `/data/tux.db`。镜像不会启用实盘交易。
+
 环境配置必须使用 `venue + product + environment` 三元组，不能依赖单一的 `demo` 布尔值。Binance 不同产品的 Testnet/Demo 能力并不完全相同；OKX Demo REST 请求需要模拟交易请求头，并使用对应的 Demo WebSocket。所有端点都应配置化，以适应交易所和地区差异。
 
 ## 产品功能
